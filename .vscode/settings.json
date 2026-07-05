@@ -1,0 +1,5 @@
+{
+    "nixEnvPicker.envFile": "${workspaceFolder}${/}flake.nix",
+    "nixEnvSelector.nixFile": "${workspaceFolder}/flake.nix",
+    "cmake.sourceDirectory": "/home/anabs/Documents/Uni/2ºSemestre/projeto/pyDHM-master/coolchic/cpp"
+}
