@@ -227,9 +227,9 @@ def getMetricsPhase(fiber, isCategory=False, isAll=False):
 def getMetricsCombined(allFibers):
     metrics = ['psnr', 'ssim']
     for metric in metrics:
-        df_holo = readR.getAllFibersDataComplex(allFibers, metric)
-        df_phase = metricP.getAllFibersPhaseMetric(allFibers, False, metric)
-        df_pda = metricP.getAllFibersPhaseMetric(allFibers, True, metric)
+        df_holo, _ = readR.getAllFibersDataComplex(allFibers, metric)
+        df_phase, _ = metricP.getAllFibersPhaseMetric(allFibers, False, metric)
+        df_pda, _ = metricP.getAllFibersPhaseMetric(allFibers, True, metric)
 
         readR.getRDGraphCombined(df_holo, df_phase, df_pda, [metric], isAll=True)
 

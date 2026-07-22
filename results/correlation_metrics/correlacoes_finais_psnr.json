@@ -1,0 +1,36 @@
+{
+    "pearson": {
+        "psnr_psnr_Complexo": {
+            "psnr_psnr_Complexo": 1.0,
+            "psnr_psnr_Wrapped": 0.9669277420602141,
+            "psnr_psnr_Unwrapped": 0.9643287696521443
+        },
+        "psnr_psnr_Wrapped": {
+            "psnr_psnr_Complexo": 0.9669277420602141,
+            "psnr_psnr_Wrapped": 1.0,
+            "psnr_psnr_Unwrapped": 0.9418520102499585
+        },
+        "psnr_psnr_Unwrapped": {
+            "psnr_psnr_Complexo": 0.9643287696521443,
+            "psnr_psnr_Wrapped": 0.9418520102499585,
+            "psnr_psnr_Unwrapped": 1.0
+        }
+    },
+    "spearman": {
+        "psnr_psnr_Complexo": {
+            "psnr_psnr_Complexo": 1.0,
+            "psnr_psnr_Wrapped": 0.9,
+            "psnr_psnr_Unwrapped": 0.9
+        },
+        "psnr_psnr_Wrapped": {
+            "psnr_psnr_Complexo": 0.9,
+            "psnr_psnr_Wrapped": 1.0,
+            "psnr_psnr_Unwrapped": 1.0
+        },
+        "psnr_psnr_Unwrapped": {
+            "psnr_psnr_Complexo": 0.9,
+            "psnr_psnr_Wrapped": 1.0,
+            "psnr_psnr_Unwrapped": 1.0
+        }
+    }
+}

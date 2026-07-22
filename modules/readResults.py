@@ -79,10 +79,9 @@ def constructGraph(fiber_name, metric, dfList, labelList, title, outputName, isA
 
     #caminho absoluto para os dados e output
     if isAll:
-        output_dir = os.path.join(base_root, "reconstructions", "fiber")
+        output_dir = os.path.join(base_root, "reconstructions", "fiber", "results", "graph_of_results")
     elif isCategory:
         output_dir = os.path.join(base_root, "reconstructions", "fiber", prefix+"_glicerina")
-        print("CATEGORY --- " + prefix+"_glicerina")
     else:
         output_dir = os.path.join(base_root, "reconstructions", "fiber", prefix+"_glicerina", fiber_name)
 
@@ -200,10 +199,10 @@ def getRDGraphPhaseAll(fiberList, phaseType, metrics, outputFilename, isAll=True
 
         labelList = ['Fase ' + phaseType]
 
-        df_data = metricsP.getAllFibersPhaseMetric(fiberList, isPhaseWrapped, metricOpt)
+        df_data, _ = metricsP.getAllFibersPhaseMetric(fiberList, isPhaseWrapped, metricOpt)
 
-        base_dir = os.path.join(base_root, "reconstructions", "fiber")
-            
+        base_dir = os.path.join(base_root, "reconstructions", "fiber", "results", "numbers_of_results")
+                    
         nome_ficheiro = f"resultados_{phaseType}_{metricOpt}.json"
         save_path = os.path.join(base_dir, nome_ficheiro)
             
@@ -222,10 +221,9 @@ def getRDGraphPhaseAll(fiberList, phaseType, metrics, outputFilename, isAll=True
 
 
 def getRDGraphComplexAll(allFibers, metrics=metricList, isCategory=False, isAll=True):
-    output_dir = os.path.join(base_root, "reconstructions", "fiber")
-
+    output_dir = os.path.join(base_root, "reconstructions", "fiber", "results", "numbers_of_results")
     for metric in metrics:
-        df_mediaTotal = getAllFibersDataComplex(allFibers, metric)
+        df_mediaTotal, _ = getAllFibersDataComplex(allFibers, metric)
 
         #guardar os dados para avaliar mais facilmente depois
         save_path = os.path.join(output_dir, f"resultados_media_{metric}.json")
@@ -436,4 +434,4 @@ def getAllFibersDataComplex(allFibers, metric='psnr'):
     df_total['lmbda'] = df_total['lmbda'].round(10)
     df_mean = df_total.groupby('lmbda').mean().reset_index()
 
-    return df_mean
+    return df_mean, df_total

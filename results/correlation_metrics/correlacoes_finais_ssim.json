@@ -1,0 +1,36 @@
+{
+    "pearson": {
+        "ssim_ssim_Complexo": {
+            "ssim_ssim_Complexo": 1.0,
+            "psnr_ssim_Wrapped": 0.8819865503124377,
+            "psnr_ssim_Unwrapped": 0.9674432972396197
+        },
+        "psnr_ssim_Wrapped": {
+            "ssim_ssim_Complexo": 0.8819865503124377,
+            "psnr_ssim_Wrapped": 1.0,
+            "psnr_ssim_Unwrapped": 0.8957647126613102
+        },
+        "psnr_ssim_Unwrapped": {
+            "ssim_ssim_Complexo": 0.9674432972396197,
+            "psnr_ssim_Wrapped": 0.8957647126613102,
+            "psnr_ssim_Unwrapped": 1.0
+        }
+    },
+    "spearman": {
+        "ssim_ssim_Complexo": {
+            "ssim_ssim_Complexo": 1.0,
+            "psnr_ssim_Wrapped": 0.8,
+            "psnr_ssim_Unwrapped": 1.0
+        },
+        "psnr_ssim_Wrapped": {
+            "ssim_ssim_Complexo": 0.8,
+            "psnr_ssim_Wrapped": 1.0,
+            "psnr_ssim_Unwrapped": 0.8
+        },
+        "psnr_ssim_Unwrapped": {
+            "ssim_ssim_Complexo": 1.0,
+            "psnr_ssim_Wrapped": 0.8,
+            "psnr_ssim_Unwrapped": 1.0
+        }
+    }
+}

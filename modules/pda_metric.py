@@ -213,7 +213,7 @@ def getAllFibersPhaseMetric(allFibers, isPhaseWrapped, metric='psnr'):
 
     df_meanTotal = df_total.groupby('lmbda').mean().reset_index()
 
-    return df_meanTotal
+    return df_meanTotal, df_total
 
 ########################################################################################################################################################################
 ## Aplicar métricas de correlação e salvar os resultados                                                                                                              ##
@@ -223,7 +223,9 @@ def applyCorrelationMetrics(base_dir=None):
     if base_dir is None:
         script_dir = os.path.dirname(os.path.abspath(__file__))
         base_root = os.path.dirname(script_dir) 
-        base_dir = os.path.join(base_root, "reconstructions", "fiber")
+        base_dir = os.path.join(base_root, "reconstructions", "fiber", "results", "numbers_of_results")
+    if output_dir is None:
+        output_dir = os.path.join(os.path.dirname(os.path.dirname(base_dir)), "metrics_correlation")
 
     for metric in ['psnr', 'ssim']:
         path_complex = os.path.join(base_dir, f"resultados_media_{metric}.json")
@@ -251,8 +253,8 @@ def applyCorrelationMetrics(base_dir=None):
             "spearman": matrix_spearman.to_dict()
         }
         
-        correlationPath = os.path.join(base_dir, f"correlacoes_finais_{metric}.json")
-        
+        correlationPath = os.path.join(output_dir, f"correlacoes_finais_{metric}.json")
+                
         readR.save_json(correlationPath, correlation_data)
 
 def loadAllMetricsJson(filepath, metric, element):
