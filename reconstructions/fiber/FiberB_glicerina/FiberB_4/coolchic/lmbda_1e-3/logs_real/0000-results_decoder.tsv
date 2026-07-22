@@ -1,0 +1,2 @@
+loss        psnr_db      rate_bpp    lmbda   seq_name                n_pixels   display_order   coding_order   
+0.9000795   34.7830245   0.5676515   0.001   holo_order_real_8bits   60516      0               0              

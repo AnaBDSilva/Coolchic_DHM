@@ -146,5 +146,3 @@ reconstructions/fiber_before/
 reconstructions/azo/
 
 *.npy
-*.pt
-*.tsv
