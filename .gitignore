@@ -142,4 +142,9 @@ cython_debug/
 nix/
 
 # results folder of holo reconstruction/compression
-reconstructions/
+reconstructions/fiber_before/
+reconstructions/azo/
+
+*.npy
+*.pt
+*.tsv

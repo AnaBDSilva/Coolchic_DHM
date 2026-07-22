@@ -1,0 +1,28 @@
+fibras_glycerina
+
+- nome          - boa reconstrução   - compressão já feita
+
+cannabis
+- 1g            - sim                - sim !
+- 2g            - sim                - sim !
+- 3g            - talvez             - sim !
+- 4g            - não                - -----
+
+
+fibra A
+- 1             - sim                - sim !
+- 1-lower part  - sim                - sim !
+- 2             - talvez             - sim !
+- 3             - talvez             - sim !
+- 4             - sim                - sim !
+- 5             - não                - -----
+
+fibra B
+- 1.1           - ?                  -
+- 1.2           - ?                  -
+- 0             - sim                - sim !
+- 1             - sim                - sim !
+- 2             - sim                - sim !
+- 3             - sim                - sim !
+- 4             - sim                - sim !
+
