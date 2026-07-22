@@ -11,14 +11,15 @@ import cv2
 
 import os
 import subprocess
-import glob
-
-from pathlib import Path
-
+import re
 
 # criar a estrutura de pastas para depois guardar os ficheiros necessários
 def create_fiber_structure(fiber_name, lambdas=["1e-1", "1e-2", "1e-3", "1e-4", "1e-5"]):
-    base = f"reconstructions/fiber/{fiber_name}"
+    prefix = re.split(r"[_.]+", fiber_name)[0]
+    
+    first_base = f"reconstructions/fiber/"
+
+    base = f"{first_base}/{prefix}_glicerina/{fiber_name}"
     
     folders = [
         f"{base}/hologram",
@@ -37,7 +38,8 @@ def create_fiber_structure(fiber_name, lambdas=["1e-1", "1e-2", "1e-3", "1e-4", 
     print(f"Estrutura criada para {fiber_name}")
 
 def compress_hologram(fiber_name, lmbda, bits, iterations=2000, filename="holo"):
-    base = os.path.abspath(f"reconstructions/fiber/{fiber_name}")
+    prefix = re.split(r"[_.]+", fiber_name)[0]
+    base = os.path.abspath(f"reconstructions/fiber/{prefix}_glicerina/{fiber_name}")
     ##### REAL
     input_path  = f"{base}/hologram/{filename}_real_{str(bits)}bits.png"
     output_path = f"{base}/coolchic/lmbda_{lmbda}/{filename}_real_{bits}bits_comp.cool"
@@ -76,7 +78,8 @@ def compress_hologram(fiber_name, lmbda, bits, iterations=2000, filename="holo")
     ], check=True, env=env)
 
 def decompress_hologram(fiber_name, lmbda, bits, filename="holo"):
-    base = f"reconstructions/fiber/{fiber_name}"
+    prefix = re.split(r"[_.]+", fiber_name)[0]
+    base = f"reconstructions/fiber/{prefix}_glicerina/{fiber_name}"
     ##### REAL
     input_path  = f"{base}/coolchic/lmbda_{lmbda}/{filename}_real_{bits}bits_comp.cool"
     output_ppm  = f"{base}/coolchic/lmbda_{lmbda}/{filename}_real_{bits}bits_decomp.ppm"
@@ -123,7 +126,8 @@ def normalizeComplexMatrix(hologram, bits):
     return holo_real_b, holo_imag_b, minR, maxR, minI, maxI
 
 def denormalizeRealImag(fiber_name, lmbda, bits, minR, maxR, minI, maxI, filename="holo"):
-    base = f"reconstructions/fiber/{fiber_name}"
+    prefix = re.split(r"[_.]+", fiber_name)[0]
+    base = f"reconstructions/fiber/{prefix}_glicerina/{fiber_name}"
     output_ppm_r  = f"{base}/coolchic/lmbda_{lmbda}/{filename}_real_{bits}bits_decomp.ppm"
     output_ppm_i  = f"{base}/coolchic/lmbda_{lmbda}/{filename}_imag_{bits}bits_decomp.ppm"
     output_path_r = f"{base}/coolchic/lmbda_{lmbda}/{filename}_real_{bits}bits_decomp.npy"

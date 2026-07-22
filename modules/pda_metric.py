@@ -19,6 +19,10 @@ import modules.readResults as readR
 
 from skimage.metrics import structural_similarity as ssim
 
+########################################################################################################################################################################
+## Implementação de métricas adaptadas à fase                                                                                                              ##
+########################################################################################################################################################################
+
 pi_val = np.pi
 
 #garante que está entre -pi e pi
@@ -140,38 +144,16 @@ def pda_ssim(ph1, ph2, isWrapped):
 
     return res
 
-#test of the metric
-def test_metric(fiber_name, isPhaseWrapped, metric='psnr', isAll=False):
-    if isPhaseWrapped:
-        outputFilename = "phaseWrapped"
-        phaseType = "Wrapped"
-        metricLabel = "PDA-SSIM" if metric == 'ssim' else "PDA-PSNR"
-    else:
-        outputFilename = "phaseUnwrapped"
-        phaseType = "Unwrapped"
-        metricLabel = "SSIM" if metric == 'ssim' else "PSNR"
-
-    if isAll:
-        outputFilename = outputFilename + "AllFibers"
-        df_data = getAllFibersGraphPhase(fiber_name, isPhaseWrapped, metric)
-
-        base_dir = "/home/anabs/Documents/Uni/2ºSemestre/projeto/pyDHM-master/reconstructions/fiber/"
-        
-        nome_ficheiro = f"resultados_{phaseType}_{metric}.json"
-        save_path = os.path.join(base_dir, nome_ficheiro)
-        
-        dados_json = df_data.to_dict(orient='records')
-        readR.save_json(save_path, dados_json)
-    else:
-        df_data = get_metric_fiber(fiber_name, outputFilename, isPhaseWrapped, metric)
-
-    readR.getRDGraphPhase(fiber_name, df_data, phaseType, metricLabel, outputFilename, isAll)
+########################################################################################################################################################################
+## Calcular valores das métricas e criar o gráfico para as métricas da fase                                                                                           ##
+########################################################################################################################################################################
 
 def get_metric_fiber(fiber_name, outputFilename, isPhaseWrapped, metric='psnr'):
     script_dir = os.path.dirname(os.path.abspath(__file__))
     base_root = os.path.dirname(script_dir) 
-    compressed_dir = os.path.join(base_root, "reconstructions", "fiber", fiber_name, "coolchic")
-    reference_dir = os.path.join(base_root, "reconstructions", "fiber", fiber_name, "reference")
+    prefix = re.split(r"[_.]+", fiber_name)[0]
+    compressed_dir = os.path.join(base_root, "reconstructions", "fiber", f"{prefix}_glicerina", fiber_name, "coolchic")
+    reference_dir = os.path.join(base_root, "reconstructions", "fiber", f"{prefix}_glicerina", fiber_name, "reference")
 
     data = {'rate': [], metric: [], 'lmbda': []}
     df_complex = readR.getStatsCCComplex(compressed_dir)
@@ -203,13 +185,13 @@ def get_metric_fiber(fiber_name, outputFilename, isPhaseWrapped, metric='psnr'):
         bpp = lin['rate'].iloc[0]
 
         data[metric].append(val)
-        data['lmbda'].append(lambda_val)
+        data['lmbda'].append(float(lambda_val))
         data['rate'].append(bpp)
 
     df_data = pd.DataFrame(data).sort_values(by='rate')
     return df_data
 
-def getAllFibersGraphPhase(allFibers, isPhaseWrapped, metric='psnr'):
+def getAllFibersPhaseMetric(allFibers, isPhaseWrapped, metric='psnr'):
     if isPhaseWrapped:
         outputFilename = "phaseWrapped"
     else:
@@ -232,6 +214,10 @@ def getAllFibersGraphPhase(allFibers, isPhaseWrapped, metric='psnr'):
     df_meanTotal = df_total.groupby('lmbda').mean().reset_index()
 
     return df_meanTotal
+
+########################################################################################################################################################################
+## Aplicar métricas de correlação e salvar os resultados                                                                                                              ##
+########################################################################################################################################################################
 
 def applyCorrelationMetrics(base_dir=None):
     if base_dir is None:

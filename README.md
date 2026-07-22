@@ -4,13 +4,15 @@ Avaliação do Codec Cool-Chic na Compressão de Fase em Holografia Microscópic
 
 ## Visão Geral da Estrutura
 
+``` 
 .
 ├── recon_holo_comp.py                      # Programa principal que contém os dois fluxos principais
 ├── Lloyd_DHM_PhaseRecROI_AUTO_COMP.py      # Módulo principal que tem a lógica principal de cada etapa do processo
 ├── modules/                                # Módulos desenvolvidos em Python durante o projeto (ou reutlizados)
 ├── pyDHM/                                  # Biblioteca externa para reconstrução numérica de DHM
+├── data/                                   # Dados das amostras
 └── reconstructions/                        # Dados de teste e resultados de todas as amostras
-
+``` 
 ---
 
 ## `modules/`
@@ -19,18 +21,9 @@ Código-fonte principal do projeto.
 
 - **`autoOrderDetection.py`** — Deteção automática da ordem +1 no espectro de Fourier do holograma.
 - **`compressionPipeline.py`** — Módulo central: normalização, preparação e interface com o codec Cool-Chic (compressão/descompressão).
-- **`funs_local.py`** — Funções auxiliares de uso geral. (biblioteca noteleDHM-Tool)
-- **`no_tele_main.py`** — Script principal de reconstrução em configuração não-telecêntrica (biblioteca noteleDHM-Tool).
 - **`pda_metric.py`** — Métricas de avaliação de fase (PDA-PSNR, PDA-SSIM) e as métricas tradicinais (PSNR, SSIM).
 - **`processUtils.py`** — Pré-processamento: ajuste a matriz quadrada e apodização.
 - **`readResults.py`** — Leitura, agregação e geração dos gráficos de rate-distortion.
-- **`extra_code/`** — Código adicional/experimental, fora do pipeline principal.
-
----
-
-## `pyDHM/`
-
-Biblioteca externa usada para a reconstrução numérica do campo complexo (propagação por espectro angular, extração de amplitude e fase).
 
 ---
 
@@ -75,7 +68,6 @@ Resultados combinando **todas as fibras**:
 - `resultsGraph_*AllFibers.png` — Curvas de rate-distortion médias por métrica/domínio.
 - `correlacoes_finais_psnr.json` / `_ssim.json` — Matrizes finais de correlação entre domínios.
 - `resultados_media_*.json` — Médias globais por λ e métrica.
-- `fiber_before/` — Versão intermédia/anterior dos dados.
 - `results.txt` — Registo de quais amostras já passaram pelo fluxo de reconstrução, e quais já foram introduzidas no fluxo de compressão.
 
 ---

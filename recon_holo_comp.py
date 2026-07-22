@@ -1,10 +1,11 @@
 # %% -------------------------------------------------------------------------------
 
 import Lloyd_DHM_PhaseRecROI_AUTO_COMP as autoComp
-import modules.pda_metric as metrics
 import modules.readResults as readR
+import modules.pda_metric as metricP
 import numpy as np
 import re
+from collections import defaultdict
 
 applyCoolChic = True
 onlyOrderPlus1 = True
@@ -20,12 +21,19 @@ cannabis = ["cannabis_1g", "cannabis_2g", "cannabis_3g"]
 #cannabis = ["cannabis_1g", "cannabis_2g", "cannabis_3g", "cannabis_4g"]
 #fibersA = ["FiberA_1", "FiberA_1_lowerpart", "FiberA_2", "FiberA_3", "FiberA_4", "FiberA_5"]
 
-
 #todas as fibras
-allFibers = np.concatenate((fibersA, fibersB, cannabis))
+allFibers = np.concatenate((fibersA, fibersB, cannabis)).tolist()
+
+mainFolder = "Fibras_glicerina"
+PATH_MAP = {
+    "FiberA": "FiberA_glicerina/",
+    "FiberB": "FiberB_glicerina/",
+    "cannabis": "cannabis_glicerina/"
+}
 
 #caminho para as amostras geral
-samplePath = "/home/anabs/Documents/Uni/2ºSemestre/projeto/pyDHM-master/data/DataIn/Fibras_glicerina/"
+#samplePath = f"/home/anabs/Documents/Uni/2ºSemestre/projeto/pyDHM-master/data/DataIn/{mainFolder}/"
+samplePath = f"data/DataIn/{mainFolder}/"
 
 #caminho especifico para cada tipo de amostra de fibras
 fApath = samplePath + "FiberA_glicerina/"
@@ -155,24 +163,75 @@ def runCoolChic(fiberGroup):
         for lmb in lambdas:
             numericalReconstructionAuto_CoolChic(fiber, lmb)
             #numericalReconstructionAuto(fiber, path, ref)
-        runMetric(fiber)
 
-def runMetric(fiber):
-    metrics.test_metric(fiber, isPhaseWrapped=True,  metric='psnr')  # PDA-PSNR
-    metrics.test_metric(fiber, isPhaseWrapped=False, metric='psnr')  # PSNR
-    metrics.test_metric(fiber, isPhaseWrapped=True,  metric='ssim')  # PDA-SSIM
-    metrics.test_metric(fiber, isPhaseWrapped=False, metric='ssim')  # SSIM
-    #readR.getRDGraphReIm(fiber)
-    #readR.getRDGraphComplex(fiber)
+########################################################################################################################################################################
+## Correr as métricas para cada fibra                                                                                                                                 ##
+########################################################################################################################################################################
 
-def runMetricForAll(allFibers):
-    metrics.test_metric(allFibers, isPhaseWrapped=True,  metric='psnr', isAll=True)
-    metrics.test_metric(allFibers, isPhaseWrapped=True,  metric='ssim', isAll=True)
-    metrics.test_metric(allFibers, isPhaseWrapped=False, metric='psnr', isAll=True)
-    metrics.test_metric(allFibers, isPhaseWrapped=False, metric='ssim', isAll=True)
+def getMetricsHoloComplex(fiber, isCategory=False, isAll=False):
+    if not isinstance(fiber, list):
+        fiberList = [fiber]
+    else:
+        fiberList = fiber
 
-    readR.getAllFibersGraphComplexMetric(allFibers, metric='psnr')
-    readR.getAllFibersGraphComplexMetric(allFibers, metric='ssim')
+    #real e imaginario
+    readR.getRDGraphsReIm(fiberList)
+
+    #complexo para cada fibra psnr e ssim
+    readR.getRDGraphComplex(fiberList)
+
+    #complexo para cada categoria
+    if isCategory:
+        categories = defaultdict(list)
+        for fib in fiberList:
+            cat_prefix = re.split(r"[_.]+", fib)[0]  
+            categories[cat_prefix].append(fib)
+        
+        for cat_prefix, group_items in categories.items():
+            readR.getRDGraphComplexAll(group_items, isCategory=isCategory, isAll=False)
+
+    #complexo para um grafico global com todas as fibras
+    if isAll:
+        readR.getRDGraphComplexAll(fiberList, isCategory=False)
+
+def getMetricsPhase(fiber, isCategory=False, isAll=False):
+    if not isinstance(fiber, list):
+        fiberList = [fiber]
+    else:
+        fiberList = fiber
+  
+    #fases para cada fibra psnr e ssim
+    readR.getRDGraphPhase(fiberList, "Wrapped", ['psnr', 'ssim'], "phaseWrapped", isPhaseWrapped=True)
+    readR.getRDGraphPhase(fiberList, "Unwrapped", ['psnr', 'ssim'], "phaseUnwrapped", isPhaseWrapped=False)
+ 
+    #fases para cada categoria
+    if isCategory:
+        categories = defaultdict(list)
+        for fib in fiberList:
+            cat_prefix = re.split(r"[_.]+", fib)[0]  
+            categories[cat_prefix].append(fib)
+        
+        for cat_prefix, group_items in categories.items():
+            readR.getRDGraphPhaseAll(group_items, "Wrapped", ['psnr'], "phaseWrapped", isAll=False, isCategory=isCategory, isPhaseWrapped=True)
+            readR.getRDGraphPhaseAll(group_items, "Wrapped", ['ssim'], "phaseWrapped", isAll=False, isCategory=isCategory, isPhaseWrapped=True)
+            readR.getRDGraphPhaseAll(group_items, "Unwrapped", ['psnr'], "phaseUnwrapped", isAll=False, isCategory=isCategory, isPhaseWrapped=False)
+            readR.getRDGraphPhaseAll(group_items, "Unwrapped", ['ssim'], "phaseUnwrapped", isAll=False, isCategory=isCategory, isPhaseWrapped=False)
+ 
+    #fases para um grafico global com todas as fibras
+    if isAll:
+        readR.getRDGraphPhaseAll(allFibers, "Wrapped", ['psnr'], "phaseWrapped", isAll=isAll, isPhaseWrapped=True)
+        readR.getRDGraphPhaseAll(allFibers, "Wrapped", ['ssim'], "phaseWrapped", isAll=isAll, isPhaseWrapped=True)
+        readR.getRDGraphPhaseAll(allFibers, "Unwrapped", ['psnr'], "phaseUnwrapped", isAll=isAll, isPhaseWrapped=False)
+        readR.getRDGraphPhaseAll(allFibers, "Unwrapped", ['ssim'], "phaseUnwrapped", isAll=isAll, isPhaseWrapped=False)
+
+def getMetricsCombined(allFibers):
+    metrics = ['psnr', 'ssim']
+    for metric in metrics:
+        df_holo = readR.getAllFibersDataComplex(allFibers, metric)
+        df_phase = metricP.getAllFibersPhaseMetric(allFibers, False, metric)
+        df_pda = metricP.getAllFibersPhaseMetric(allFibers, True, metric)
+
+        readR.getRDGraphCombined(df_holo, df_phase, df_pda, [metric], isAll=True)
 
 #########
 #runReconstruction(allFibers)
@@ -181,5 +240,8 @@ def runMetricForAll(allFibers):
 arr2 = ["FiberB_0", "FiberB_1"]
 arr3 = [x for x in fibersB if x not in arr2]
 
-metrics.applyCorrelationMetrics()
+#getMetricsHoloComplex(allFibers, isCategory=True, isAll=True)
+#getMetricsPhase(allFibers, isCategory=True, isAll=True)
+getMetricsCombined(allFibers)
+
 

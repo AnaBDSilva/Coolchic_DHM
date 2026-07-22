@@ -4,28 +4,87 @@ import os
 import glob
 import pandas as pd
 import matplotlib.pyplot as plt
-import json
 import numpy as np
 from skimage.metrics import structural_similarity as ssim
 import cv2
+import modules.processUtils as procUtils
+import re
+import modules.pda_metric as metricsP
 
 colors = ['blue', 'red', 'green', 'orange', 'purple']
-marker = ['o', 's', '>', '<']
+marker = ['o', 's', '>', '<', '^']
 linestyle = ['-']
-annotDist = [(0, 8), (0, -15), (-15, 0), (15, 0)]
+annotDist = [(0, 8), (0, -15), (-15, 0), (8, 0), (15, 0)]
 
 script_dir = os.path.dirname(os.path.abspath(__file__))
 base_root = os.path.dirname(script_dir) 
 
 metricList = ['psnr', 'ssim']
 
+mainFolder = "Fibras_glicerina"
+PATH_MAP = {
+    "FiberA": "FiberA_glicerina/",
+    "FiberB": "FiberB_glicerina/",
+    "cannabis": "cannabis_glicerina/"
+}
+
+
+########################################################################################################################################################################
+## Função genérica para a construção de gráficos                                                                                                                      ##
+########################################################################################################################################################################
+
 #metric = psnr or ssim  
-def constructGraph(fiber_name, metric, dfList, labelList, title, outputName, isAll=False):
+def constructGraph(fiber_name, metric, dfList, labelList, title, outputName, isAll=False, isCategory=False):
+    '''
+    Constructs a graph where one axis is a metric, and the other is the rate (bpp)
+ 
+    Parameters
+    ----
+    fiber_name : str
+        name of the fiber, to save the resulting files
+    metric : str
+        which metric was applied
+    dfList : list
+        list of Dataframes, where each dataframe contains the information that is correspondent to one line in the graph \n
+        ex - the first dataframe is the real component information whilst the second one is the imaginary component information
+        (this was made so that can only be at most five lines in one graph)
+    labelList : list 
+        list of strings that are the labels each line should have, needs to be in the same order as the dataframes in the list
+    title : str
+        title for the graph
+    outputName : str
+        name of the output file with the graph
+    isAll : boolean
+        says if its a graph with just a single sample or more than one in one line,
+        impacts mainly the output folder \n
+        if False then its a single sample, so it will be saved in the specific fiber folder
+        else it will be saved in the overal fiber folder 
+    '''
+    path = ""
+    info = ""
+
+    if not isAll and not isCategory:
+        prefix = re.split(r"[_.]+", fiber_name)[0]
+        path = PATH_MAP.get(prefix, "")
+        info = fiber_name
+    else:
+        if isCategory:
+            prefix = re.split(r"[_.]+", fiber_name[0])[0]
+            path = PATH_MAP.get(prefix, "")
+            info = f"Todas as amostras do tipo {prefix}"
+        elif isAll:
+            info = "Todas as amostras"
+
+    extraInfo = f"Pasta: {mainFolder}/{path}, Amostra: {info}"
+
     #caminho absoluto para os dados e output
     if isAll:
         output_dir = os.path.join(base_root, "reconstructions", "fiber")
+    elif isCategory:
+        output_dir = os.path.join(base_root, "reconstructions", "fiber", prefix+"_glicerina")
+        print("CATEGORY --- " + prefix+"_glicerina")
     else:
-        output_dir = os.path.join(base_root, "reconstructions", "fiber", fiber_name)
+        output_dir = os.path.join(base_root, "reconstructions", "fiber", prefix+"_glicerina", fiber_name)
 
     if metric == 'psnr':
         quality = 'PSNR (dB)'
@@ -35,7 +94,7 @@ def constructGraph(fiber_name, metric, dfList, labelList, title, outputName, isA
     plt.figure(figsize=(10, 6))
 
     for i in range(0, len(dfList)):
-        plt.plot(dfList[i]['rate'], dfList[i][metric], marker=marker[i], linestyle=linestyle[i], color=colors[i], label=labelList[i])
+        plt.plot(dfList[i]['rate'], dfList[i][metric], marker=marker[i], linestyle=linestyle[0], color=colors[i], label=labelList[i])
     
     plt.xlabel('Débito / Rate (bpp)', fontsize=12)
     plt.ylabel(f'Qualidade / {quality}', fontsize=12)
@@ -47,11 +106,28 @@ def constructGraph(fiber_name, metric, dfList, labelList, title, outputName, isA
         for _, row in dfList[i].iterrows():
             plt.annotate(f"λ={row['lmbda']:.1e}", (row['rate'], row[metric]), 
                         textcoords="offset points", xytext=annotDist[i], ha='center', fontsize=8, color=colors[i])
-            
+                
+    plt.figtext(
+        0.5,           
+        0.035,          
+        extraInfo,   
+        ha='center',   
+        fontsize=10, 
+        style='italic',
+        color='gray'
+    )
+
     plt.tight_layout()
+    plt.subplots_adjust(bottom=0.15)
+
     output_path = os.path.join(output_dir, outputName)
     plt.savefig(output_path)
     plt.show()
+
+
+########################################################################################################################################################################
+## Funções que criam e guardam como ficheiros os diferentes gráficos necessário                                                                                       ##
+########################################################################################################################################################################
 
 #ainda não tem forma de fazer o ssim, porque está se a usar o psnr calculado do cool chic
 def getRDGraphsReIm(fiberList, metrics=['psnr']):
@@ -59,7 +135,8 @@ def getRDGraphsReIm(fiberList, metrics=['psnr']):
         dfList = []
         labelList = []
 
-        base_dir = os.path.join(base_root, "reconstructions", "fiber", fiberOpt, "coolchic")
+        prefix = re.split(r"[_.]+", fiberOpt)[0]
+        base_dir = os.path.join(base_root, "reconstructions", "fiber", f"{prefix}_glicerina", fiberOpt, "coolchic")
         df_real, df_imag = getStatsCoolChic(base_dir)
 
         dfList.append(df_real)
@@ -74,7 +151,8 @@ def getRDGraphComplex(fiberList, metrics=metricList):
     labelList = ['Holograma Complexo']
 
     for fiberOpt in fiberList:
-        base_dir = os.path.join(base_root, "reconstructions", "fiber", fiberOpt, "coolchic")
+        prefix = re.split(r"[_.]+", fiberOpt)[0]
+        base_dir = os.path.join(base_root, "reconstructions", "fiber", f"{prefix}_glicerina", fiberOpt, "coolchic")
 
         for metricOpt in metrics:
             dfList = []
@@ -82,49 +160,68 @@ def getRDGraphComplex(fiberList, metrics=metricList):
             if metricOpt == 'psnr':
                 df_complex = getStatsCCComplex(base_dir)
             else:
-                hologram_dir = os.path.join(base_root, "reconstructions", "fiber", fiberOpt, "hologram")
+                prefix = re.split(r"[_.]+", fiberOpt)[0]
+                hologram_dir = os.path.join(base_root, "reconstructions", "fiber", f"{prefix}_glicerina", fiberOpt, "hologram")
                 df_complex = getStatsCCComplexSSIM(base_dir, hologram_dir)
     
             dfList.append(df_complex)
 
             constructGraph(fiberOpt, metricOpt, dfList, labelList, f'Curva Rate-Distortion {metricOpt}: Holograma Complexo', f"resultsGraphComplex_{metricOpt}.png")
 
-def getRDGraphPhase(fiberList, df_data, phaseType,  metrics, outputFilename, isAll=False):    
+def getRDGraphPhase(fiberList, phaseType, metrics, outputFilename, isAll=False, isCategory=False, isPhaseWrapped=False):    
+    if isPhaseWrapped:
+        outputFilename = "phaseWrapped"
+        phaseType = "Wrapped"
+    else:
+        outputFilename = "phaseUnwrapped"
+        phaseType = "Unwrapped"
+
     labelList = ['Fase ' + phaseType]
 
     for fiberOpt in fiberList:
         for metricOpt in metrics:
             dfList = []
+            df_data = metricsP.get_metric_fiber(fiberOpt, outputFilename, isPhaseWrapped, metricOpt)
+
             dfList.append(df_data)
 
-            constructGraph(fiberOpt, metricOpt, dfList, labelList, f'Avaliação da fidelidade da fase {phaseType} em função da taxa de compressão ({metricOpt})', f"resultsGraph_{metricOpt}_{outputFilename}.png", isAll)
+            constructGraph(fiberOpt, metricOpt, dfList, labelList, f'Avaliação da fidelidade da fase {phaseType} em função da taxa de compressão ({metricOpt})', f"resultsGraph_{metricOpt}_{outputFilename}.png", isAll=isAll, isCategory=isCategory)
 
-def getAllFibersDataComplex(allFibers, metric='psnr'):
-    script_dir = os.path.dirname(os.path.abspath(__file__))
-    base_root = os.path.dirname(script_dir)
-
-    dfs_list = []
-    for fiber in allFibers:
-        base_dir = os.path.join(base_root, "reconstructions", "fiber", fiber, "coolchic")
-
-        if metric == 'psnr':
-            df_complex = getStatsCCComplex(base_dir)
-        elif metric == 'ssim':
-            hologram_dir = os.path.join(base_root, "reconstructions", "fiber", fiber, "hologram")
-            df_complex = getStatsCCComplexSSIM(base_dir, hologram_dir)
+def getRDGraphPhaseAll(fiberList, phaseType, metrics, outputFilename, isAll=True, isCategory=False, isPhaseWrapped=False):    
+    for metricOpt in metrics:
+        dfList = []
+        
+        if isPhaseWrapped:
+            outputFilename = "phaseWrapped"
+            phaseType = "Wrapped"
         else:
-            raise ValueError(f"Métrica desconhecida: {metric}")
+            outputFilename = "phaseUnwrapped"
+            phaseType = "Unwrapped"
 
-        if not df_complex.empty:
-            dfs_list.append(df_complex)
+        labelList = ['Fase ' + phaseType]
 
-    df_total = pd.concat(dfs_list, ignore_index=True)
-    df_total['lmbda'] = df_total['lmbda'].round(10)
-    df_mean = df_total.groupby('lmbda').mean().reset_index()
+        df_data = metricsP.getAllFibersPhaseMetric(fiberList, isPhaseWrapped, metricOpt)
 
-    return df_mean
+        base_dir = os.path.join(base_root, "reconstructions", "fiber")
+            
+        nome_ficheiro = f"resultados_{phaseType}_{metricOpt}.json"
+        save_path = os.path.join(base_dir, nome_ficheiro)
+            
+        dados_json = df_data.to_dict(orient='records')
+        procUtils.save_json(save_path, dados_json)
 
-def getRDGraphComplexAll(allFibers, metrics=metricList):
+        dfList.append(df_data)
+
+        if isCategory:
+            prefix = re.split(r"[_.]+", fiberList[0])[0]
+            outputName =  f"resultsGraph_{metricOpt}_{outputFilename}_All{prefix}.png"
+        else:
+            outputName = f"resultsGraph_{metricOpt}_{outputFilename}_AllFibers.png"
+
+        constructGraph(fiberList, metricOpt, dfList, labelList, f'Avaliação da fidelidade da fase {phaseType} em função da taxa de compressão ({metricOpt})', outputName, isAll=isAll, isCategory=isCategory)
+
+
+def getRDGraphComplexAll(allFibers, metrics=metricList, isCategory=False, isAll=True):
     output_dir = os.path.join(base_root, "reconstructions", "fiber")
 
     for metric in metrics:
@@ -133,11 +230,73 @@ def getRDGraphComplexAll(allFibers, metrics=metricList):
         #guardar os dados para avaliar mais facilmente depois
         save_path = os.path.join(output_dir, f"resultados_media_{metric}.json")
         dados_json = df_mediaTotal.to_dict(orient='records')
-        save_json(save_path, dados_json)
+        procUtils.save_json(save_path, dados_json)
 
         dfList = [df_mediaTotal]
         labelList = ['Holograma Complexo']
-        constructGraph("", metric, dfList, labelList, f'Curva Rate-Distortion {metric}: Holograma Complexo Todas As Amostras', f"resultsGraphComplex_{metric}_AllFibers.png", True)
+
+        if isCategory:
+            prefix = re.split(r"[_.]+", allFibers[0])[0]
+            outputName =  f"resultsGraphComplex_{metric}_All{prefix}.png"
+        else:
+            outputName = f"resultsGraphComplex_{metric}_AllFibers.png"
+
+        constructGraph(allFibers, metric, dfList, labelList, f'Curva Rate-Distortion {metric}: Holograma Complexo Todas As Amostras', outputName, isAll=isAll, isCategory=isCategory)
+
+#fazer os plots para o poster
+def getRDGraphCombined(df_holo, df_phase, df_pda, metrics=metricList, isAll=False):
+    for metric in metrics:
+        if metric == 'psnr':
+            metricName = 'PSNR'
+            pdaMetric = 'PDA-PSNR'
+        else:
+            metricName = 'SSIM'
+            pdaMetric = 'PDA-SSIM'
+
+        dfList = []
+        labelList = []
+
+        dfList.append(df_holo)
+        dfList.append(df_phase)
+        dfList.append(df_pda)
+
+        labelList.append(f'Holograma ({metricName})')
+        labelList.append(f'Fase Unwrapped ({metricName})')
+        labelList.append(f'Fase Wrapped ({pdaMetric})')
+
+        constructGraph("", metric, dfList, labelList, f'Curva Rate-Distortion {metricName}', f"resultsGraph_{metricName}_combined.png", isAll=isAll)
+
+#faz um gráfico com as das métricas aplicadas à fase wrapped
+def getRDGraphPDACombined(fiber_name, df_pda_psnr, df_pda_ssim, output_dir):
+    fig, ax1 = plt.subplots(figsize=(10, 6))
+
+    color1 = 'green'
+    ax1.set_xlabel('Débito / Rate (bpp)', fontsize=12)
+    ax1.set_ylabel('PDA-PSNR (dB)', color=color1, fontsize=12)
+    ax1.plot(df_pda_psnr['rate'], df_pda_psnr['psnr'], marker='o', linestyle='-', color=color1, label='PDA-PSNR')
+    ax1.tick_params(axis='y', labelcolor=color1)
+
+    ax2 = ax1.twinx()
+    color2 = 'purple'
+    ax2.set_ylabel('PDA-SSIM', color=color2, fontsize=12)
+    ax2.plot(df_pda_ssim['rate'], df_pda_ssim['ssim'], marker='s', linestyle='--', color=color2, label='PDA-SSIM')
+    ax2.tick_params(axis='y', labelcolor=color2)
+
+    lines1, labels1 = ax1.get_legend_handles_labels()
+    lines2, labels2 = ax2.get_legend_handles_labels()
+    ax1.legend(lines1 + lines2, labels1 + labels2, loc='best', fontsize=11)
+
+    ax1.set_title('Fidelidade da fase wrapped: PDA-PSNR e PDA-SSIM', fontsize=14, fontweight='bold')
+    ax1.grid(True, linestyle='--', alpha=0.7)
+    fig.tight_layout()
+
+    output_path = os.path.join(output_dir, "resultsGraph_PDA_combined.png")
+    fig.savefig(output_path)
+    plt.show()
+
+########################################################################################################################################################################
+## Funções que vão buscar ou calcular as informações das métricas, juntando tudo em Dataframes                                                                        ##
+########################################################################################################################################################################
 
 def getStatsCoolChic(base_dir):
     data_real = {'rate': [], 'psnr': [], 'lmbda': []}
@@ -190,18 +349,6 @@ def getStatsCCComplex(base_dir):
     df_complex = pd.DataFrame(data_complex).sort_values(by='rate')
     
     return df_complex
-
-def save_json(path, data):
-    with open(path, 'w') as f:
-        json.dump(data, f, indent=4)
-
-def load_json(path):
-    if not os.path.exists(path):
-        raise FileNotFoundError(
-            f"Ficheiro {path} não encontrado. Execute o passo de referencia primeiro!"
-        )
-    with open(path, 'r') as f:
-        return json.load(f)
 
 def get_complex_ssim_quantized(orig_real, orig_imag, recon_real, recon_imag):
     '''
@@ -265,48 +412,28 @@ def getStatsCCComplexSSIM(base_dir, hologram_dir):
 
     return pd.DataFrame(data).sort_values(by='rate')
 
-#fazer os plots para o poster
-def getRDGraphCombined(fiber_name, df_holo, df_phase, output_dir, metrics=metricList, isAll=False):
-    for metric in metrics:
+def getAllFibersDataComplex(allFibers, metric='psnr'):
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    base_root = os.path.dirname(script_dir)
+
+    dfs_list = []
+    for fiber in allFibers:
+        prefix = re.split(r"[_.]+", fiber)[0]
+        base_dir = os.path.join(base_root, "reconstructions", "fiber", prefix+"_glicerina", fiber, "coolchic")
+
         if metric == 'psnr':
-            metricName = 'PSNR'
+            df_complex = getStatsCCComplex(base_dir)
+        elif metric == 'ssim':
+            hologram_dir = os.path.join(base_root, "reconstructions", "fiber", prefix+"_glicerina", fiber, "hologram")
+            df_complex = getStatsCCComplexSSIM(base_dir, hologram_dir)
         else:
-            metricName = 'SSIM'
+            raise ValueError(f"Métrica desconhecida: {metric}")
 
-        dfList = []
-        labelList = []
+        if not df_complex.empty:
+            dfs_list.append(df_complex)
 
-        dfList.append(df_holo)
-        dfList.append(df_phase)
+    df_total = pd.concat(dfs_list, ignore_index=True)
+    df_total['lmbda'] = df_total['lmbda'].round(10)
+    df_mean = df_total.groupby('lmbda').mean().reset_index()
 
-        labelList.append('Holograma')
-        labelList.append('Fase Unwrapped')
-
-        constructGraph(fiber_name, metric, dfList, labelList, f'Curva Rate-Distortion {metricName}: Holograma vs Fase Unwrapped', f"resultsGraph_{metricName}_combined.png", True)
-
-def getRDGraphPDACombined(fiber_name, df_pda_psnr, df_pda_ssim, output_dir):
-    fig, ax1 = plt.subplots(figsize=(10, 6))
-
-    color1 = 'green'
-    ax1.set_xlabel('Débito / Rate (bpp)', fontsize=12)
-    ax1.set_ylabel('PDA-PSNR (dB)', color=color1, fontsize=12)
-    ax1.plot(df_pda_psnr['rate'], df_pda_psnr['psnr'], marker='o', linestyle='-', color=color1, label='PDA-PSNR')
-    ax1.tick_params(axis='y', labelcolor=color1)
-
-    ax2 = ax1.twinx()
-    color2 = 'purple'
-    ax2.set_ylabel('PDA-SSIM', color=color2, fontsize=12)
-    ax2.plot(df_pda_ssim['rate'], df_pda_ssim['ssim'], marker='s', linestyle='--', color=color2, label='PDA-SSIM')
-    ax2.tick_params(axis='y', labelcolor=color2)
-
-    lines1, labels1 = ax1.get_legend_handles_labels()
-    lines2, labels2 = ax2.get_legend_handles_labels()
-    ax1.legend(lines1 + lines2, labels1 + labels2, loc='best', fontsize=11)
-
-    ax1.set_title('Fidelidade da fase wrapped: PDA-PSNR e PDA-SSIM', fontsize=14, fontweight='bold')
-    ax1.grid(True, linestyle='--', alpha=0.7)
-    fig.tight_layout()
-
-    output_path = os.path.join(output_dir, "resultsGraph_PDA_combined.png")
-    fig.savefig(output_path)
-    plt.show()
+    return df_mean

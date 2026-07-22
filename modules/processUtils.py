@@ -10,6 +10,7 @@ import numpy as np
 import numpy as np
 import cv2
 import json
+import os
 
 
 # ***********************************************
@@ -321,3 +322,15 @@ def pre_process(IH, Nout, isDecimate):
                     ((pad_M, pad_M), (pad_N, pad_N)),
                     mode='constant')
     return u1
+
+def save_json(path, data):
+    with open(path, 'w') as f:
+        json.dump(data, f, indent=4)
+
+def load_json(path):
+    if not os.path.exists(path):
+        raise FileNotFoundError(
+            f"Ficheiro {path} não encontrado. Execute o passo de referencia primeiro!"
+        )
+    with open(path, 'r') as f:
+        return json.load(f)
