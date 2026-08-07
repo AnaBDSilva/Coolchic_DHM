@@ -242,6 +242,6 @@ arr3 = [x for x in fibersB if x not in arr2]
 
 #getMetricsHoloComplex(allFibers, isCategory=True, isAll=True)
 #getMetricsPhase(allFibers, isCategory=True, isAll=True)
-getMetricsCombined(allFibers)
+#getMetricsCombined(allFibers)
 
 

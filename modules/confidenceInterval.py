@@ -1,4 +1,12 @@
+
 #%%
+import sys
+
+project_root = "/home/anabs/Documents/Uni/Investigação/Coolchic_DHM"
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
+
+
 import numpy as np
 import pandas as pd
 from scipy import stats
@@ -11,7 +19,7 @@ import os
 script_dir = os.getcwd()
 base_root = os.path.dirname(script_dir)
 
-output_dir = os.path.join(base_root, "Coolchic_DHM", "reconstructions", "fiber", "results", "confidence_interval")
+output_dir = os.path.join(project_root, "reconstructions", "fiber", "results", "confidence_interval")
 os.makedirs(output_dir, exist_ok=True)
 
 #%%
@@ -49,6 +57,7 @@ def summarize_metric(df, group_col, metric_col, confidence=0.95):
         rows.append({
             group_col: gval,
             "metric": metric_col.upper(),
+            "rate": g["rate"].mean(),
             "mean": mean,
             "low": low,
             "high": high,
@@ -58,6 +67,64 @@ def summarize_metric(df, group_col, metric_col, confidence=0.95):
     out["yerr_low"] = out["mean"] - out["low"]
     out["yerr_high"] = out["high"] - out["mean"]
     return out
+
+def create_combined_error_graph(psnr_dfs, ssim_dfs, labels, extraInfo, outputName):
+    colors = ['blue', 'red', 'green']
+    markers = ['o', 's', '^']
+
+    metrics_data = [
+        ("psnr", psnr_dfs, "PSNR (dB)"),
+        ("ssim", ssim_dfs, "SSIM")
+    ]
+
+    fig, axes = plt.subplots(1, 2, figsize=(12, 5), sharex=True)
+
+    for ax, (metric, dfs, ylabel) in zip(axes, metrics_data):
+
+        for df, label, color, marker in zip(dfs, labels, colors, markers):
+
+            summ = summarize_metric(df, "lmbda", metric)
+
+            ax.errorbar(
+                summ["rate"],
+                summ["mean"],
+                yerr=[
+                    summ["yerr_low"],
+                    summ["yerr_high"]
+                ],
+                fmt=marker + "-",
+                color=color,
+                linewidth=2,
+                capsize=5,
+                label=label+f"{ylabel})"
+            )
+
+        ax.set_title(metric.upper())
+        ax.set_xlabel("Débito / Rate (bpp)")
+        ax.set_ylabel(ylabel)
+        ax.grid(True, alpha=0.3)
+        ax.legend()
+
+    plt.figtext(
+        0.5,
+        0.02,
+        extraInfo,
+        ha='center',
+        fontsize=10,
+        style='italic',
+        color='gray'
+    )
+
+    plt.tight_layout(rect=[0, 0.05, 1, 1])
+
+    output_path = os.path.join(
+        output_dir,
+        f"resultsGraph_confidence_{outputName}.png"
+    )
+
+    plt.savefig(output_path)
+    plt.show()
+
 
 def create_error_graph(df_dataP, df_dataS, extraInfo, outputName):
     psnr_sum = summarize_metric(df_dataP, "lmbda", "psnr")
@@ -77,12 +144,14 @@ def create_error_graph(df_dataP, df_dataS, extraInfo, outputName):
 
     fig, axes = plt.subplots(1, 2, figsize=(11, 4), sharex=True)
 
+    prefix = "PDA-" if outputName == "wrapped" else ""
+
     for ax, summ, title in [
-        (axes[0], psnr_sum, "PSNR"),
-        (axes[1], ssim_sum, "SSIM"),
+        (axes[0], psnr_sum, f"{prefix}PSNR"),
+        (axes[1], ssim_sum, f"{prefix}SSIM"),
     ]:
         ax.errorbar(
-            summ["lmbda"],
+            summ["rate"],
             summ["mean"],
             yerr=[summ["yerr_low"], summ["yerr_high"]],
             fmt="o-",
@@ -90,15 +159,14 @@ def create_error_graph(df_dataP, df_dataS, extraInfo, outputName):
             linewidth=2
         )
         ax.set_title(title)
-        ax.set_xlabel("lambda")
-        ax.set_xscale('log')
+        ax.set_xlabel("Débito / Rate (bpp)")
         ax.grid(True, alpha=0.3)
 
     axes[0].set_ylabel("Média ± IC 95%")
     plt.tight_layout()
     plt.figtext(
             0.5,           
-            0.035,          
+            0.00015,          
             extraInfo,   
             ha='center',   
             fontsize=10, 
@@ -120,6 +188,12 @@ _, df_dataS_wrapped = metricP.getAllFibersPhaseMetric(allFibers, True, "ssim")
 _, df_dataP_unwrapped = metricP.getAllFibersPhaseMetric(allFibers, False, "psnr")
 _, df_dataS_unwrapped = metricP.getAllFibersPhaseMetric(allFibers, False, "ssim")
 
-create_error_graph(df_dataP_complex, df_dataS_complex, 'Todas as amostras para o Holograma Complexo', 'complex')
-create_error_graph(df_dataP_wrapped, df_dataS_wrapped, 'Todas as amostras para a Fase Wrapped', 'wrapped')
-create_error_graph(df_dataP_unwrapped, df_dataS_unwrapped, 'Todas as amostras para a Fase Unwrapped', 'unwrapped')
+sampleSz = len(allFibers)
+
+fiberTypes = "FiberA, FiberB e cannabis"
+
+create_error_graph(df_dataP_complex, df_dataS_complex, f'{sampleSz} amostras de {fiberTypes} para o Holograma Complexo', 'complex')
+create_error_graph(df_dataP_wrapped, df_dataS_wrapped, f'{sampleSz} amostras de {fiberTypes} para a Fase Wrapped', 'wrapped')
+create_error_graph(df_dataP_unwrapped, df_dataS_unwrapped, f'{sampleSz} amostras de {fiberTypes} para a Fase Unwrapped', 'unwrapped')
+
+create_combined_error_graph([df_dataP_complex, df_dataP_unwrapped, df_dataP_wrapped], [df_dataS_complex,df_dataS_unwrapped, df_dataS_wrapped], ["Holograma complexo (", "Fase Unwrapped (", "Fase wrapped (PDA-"], f'{sampleSz} amostras de {fiberTypes}', "combined")

@@ -28,13 +28,12 @@ PATH_MAP = {
     "cannabis": "cannabis_glicerina/"
 }
 
-
-########################################################################################################################################################################
+###################################################################################################################################################
 ## Função genérica para a construção de gráficos                                                                                                                      ##
 ########################################################################################################################################################################
 
 #metric = psnr or ssim  
-def constructGraph(fiber_name, metric, dfList, labelList, title, outputName, isAll=False, isCategory=False):
+def constructGraph(fiber_name, metric, dfList, labelList, title, outputName, isAll=False, isCategory=False, numberSamples=""):
     '''
     Constructs a graph where one axis is a metric, and the other is the rate (bpp)
  
@@ -71,24 +70,27 @@ def constructGraph(fiber_name, metric, dfList, labelList, title, outputName, isA
         if isCategory:
             prefix = re.split(r"[_.]+", fiber_name[0])[0]
             path = PATH_MAP.get(prefix, "")
-            info = f"Todas as amostras do tipo {prefix}"
+            info = f"{numberSamples} amostras do tipo {prefix}"
         elif isAll:
-            info = "Todas as amostras"
+            fiberTypes = "FiberA, FiberB e cannabis"
+            info = f"{numberSamples} amostras de {fiberTypes}"
 
     extraInfo = f"Pasta: {mainFolder}/{path}, Amostra: {info}"
 
     #caminho absoluto para os dados e output
     if isAll:
-        output_dir = os.path.join(base_root, "reconstructions", "fiber", "results", "graph_of_results")
+        output_dir = os.path.join(base_root, "reconstructions", "fiber", "results", "graphs_of_results")
     elif isCategory:
         output_dir = os.path.join(base_root, "reconstructions", "fiber", prefix+"_glicerina")
     else:
         output_dir = os.path.join(base_root, "reconstructions", "fiber", prefix+"_glicerina", fiber_name)
 
+    quality = metric.upper()
+    if "-" in metric:
+        metric = metric.split("-")[1]
+
     if metric == 'psnr':
-        quality = 'PSNR (dB)'
-    elif metric == 'ssim':
-        quality = 'SSIM'
+        quality = quality + '(dB)'
 
     plt.figure(figsize=(10, 6))
 
@@ -168,13 +170,6 @@ def getRDGraphComplex(fiberList, metrics=metricList):
             constructGraph(fiberOpt, metricOpt, dfList, labelList, f'Curva Rate-Distortion {metricOpt}: Holograma Complexo', f"resultsGraphComplex_{metricOpt}.png")
 
 def getRDGraphPhase(fiberList, phaseType, metrics, outputFilename, isAll=False, isCategory=False, isPhaseWrapped=False):    
-    if isPhaseWrapped:
-        outputFilename = "phaseWrapped"
-        phaseType = "Wrapped"
-    else:
-        outputFilename = "phaseUnwrapped"
-        phaseType = "Unwrapped"
-
     labelList = ['Fase ' + phaseType]
 
     for fiberOpt in fiberList:
@@ -184,25 +179,24 @@ def getRDGraphPhase(fiberList, phaseType, metrics, outputFilename, isAll=False, 
 
             dfList.append(df_data)
 
-            constructGraph(fiberOpt, metricOpt, dfList, labelList, f'Avaliação da fidelidade da fase {phaseType} em função da taxa de compressão ({metricOpt})', f"resultsGraph_{metricOpt}_{outputFilename}.png", isAll=isAll, isCategory=isCategory)
+            if isPhaseWrapped:
+                metricOpt = "pda-" + metricOpt
+
+            constructGraph(fiberOpt, metricOpt, dfList, labelList, f'Avaliação da fidelidade da fase {phaseType} em função da taxa de compressão ({metricOpt.upper()})', f"resultsGraph_{metricOpt}_{outputFilename}.png", isAll=isAll, isCategory=isCategory)
 
 def getRDGraphPhaseAll(fiberList, phaseType, metrics, outputFilename, isAll=True, isCategory=False, isPhaseWrapped=False):    
     for metricOpt in metrics:
         dfList = []
-        
-        if isPhaseWrapped:
-            outputFilename = "phaseWrapped"
-            phaseType = "Wrapped"
-        else:
-            outputFilename = "phaseUnwrapped"
-            phaseType = "Unwrapped"
 
         labelList = ['Fase ' + phaseType]
 
         df_data, _ = metricsP.getAllFibersPhaseMetric(fiberList, isPhaseWrapped, metricOpt)
 
         base_dir = os.path.join(base_root, "reconstructions", "fiber", "results", "numbers_of_results")
-                    
+
+        if isPhaseWrapped:
+            metricOpt = "pda-" + metricOpt
+                
         nome_ficheiro = f"resultados_{phaseType}_{metricOpt}.json"
         save_path = os.path.join(base_dir, nome_ficheiro)
             
@@ -217,7 +211,9 @@ def getRDGraphPhaseAll(fiberList, phaseType, metrics, outputFilename, isAll=True
         else:
             outputName = f"resultsGraph_{metricOpt}_{outputFilename}_AllFibers.png"
 
-        constructGraph(fiberList, metricOpt, dfList, labelList, f'Avaliação da fidelidade da fase {phaseType} em função da taxa de compressão ({metricOpt})', outputName, isAll=isAll, isCategory=isCategory)
+        sampleNum = len(fiberList)
+
+        constructGraph(fiberList, metricOpt, dfList, labelList, f'Avaliação da fidelidade da fase {phaseType} em função da taxa de compressão ({metricOpt.upper()})', outputName, isAll=isAll, isCategory=isCategory, numberSamples=sampleNum)
 
 
 def getRDGraphComplexAll(allFibers, metrics=metricList, isCategory=False, isAll=True):
@@ -239,7 +235,9 @@ def getRDGraphComplexAll(allFibers, metrics=metricList, isCategory=False, isAll=
         else:
             outputName = f"resultsGraphComplex_{metric}_AllFibers.png"
 
-        constructGraph(allFibers, metric, dfList, labelList, f'Curva Rate-Distortion {metric}: Holograma Complexo Todas As Amostras', outputName, isAll=isAll, isCategory=isCategory)
+        sampleNum = len(allFibers)
+
+        constructGraph(allFibers, metric, dfList, labelList, f'Curva Rate-Distortion {metric}: Holograma Complexo Todas As Amostras', outputName, isAll=isAll, isCategory=isCategory, numberSamples=sampleNum)
 
 #fazer os plots para o poster
 def getRDGraphCombined(df_holo, df_phase, df_pda, metrics=metricList, isAll=False):
