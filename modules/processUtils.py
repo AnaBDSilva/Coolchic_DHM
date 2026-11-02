@@ -1,7 +1,13 @@
+import os
+import sys
+
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT)
+
 import importlib
 from pyDHM import utils
 importlib.reload(utils)
-
 
 from pyDHM import numProp
 importlib.reload(numProp)
@@ -11,7 +17,17 @@ import numpy as np
 import cv2
 import json
 import os
+import re
 
+try:
+    from modules import readResults as readRes
+except ImportError:
+    import readResults as readRes
+
+
+def fiber_output_root(filenameHolo):
+    prefix = re.split(r"[_.]+", filenameHolo)[0]
+    return os.path.join("reconstructions", "fiber", f"{prefix}_glicerina", filenameHolo)
 
 # ***********************************************
 # Begin function definitions:
@@ -143,9 +159,10 @@ def segment_fiber_grabcut(image, fiber_name, applyCoolChic, saveReference, scale
 
     print("Select ROI containing fiber / Seleciona região com a fibra")
 
-    filepath = f"reconstructions/fiber/{fiber_name}/reference/holo_order"
+    base = fiber_output_root(fiber_name)
+    filepath = os.path.join(base, "reference")
     if applyCoolChic:
-        jsonPathGrabcut = f"{filepath}_infoROI_grabcut.json"
+        jsonPathGrabcut = f"{filepath}holo_order_infoROI_grabcut.json"
         try:
             with open(jsonPathGrabcut, 'r') as file:
                 info_grabcut = json.load(file)
@@ -177,7 +194,7 @@ def segment_fiber_grabcut(image, fiber_name, applyCoolChic, saveReference, scale
             "rw": rect[2],
             "rh": rect[3]
         }
-        with open(f"{filepath}_infoROI_grabcut.json", 'w') as file:
+        with open(f"{filepath}holo_order_infoROI_grabcut.json", 'w') as file:
             json.dump(info_grabcut, file, indent=4)
 
     # ------------------------------------------
@@ -324,6 +341,9 @@ def pre_process(IH, Nout, isDecimate):
     return u1
 
 def save_json(path, data):
+    directory = os.path.dirname(path)
+    if directory:
+        os.makedirs(directory, exist_ok=True)
     with open(path, 'w') as f:
         json.dump(data, f, indent=4)
 
@@ -334,3 +354,21 @@ def load_json(path):
         )
     with open(path, 'r') as f:
         return json.load(f)
+
+# loads the specific fiber intensity and then allows for the ROI 
+def chooseStandartROI(fiber_name):
+    filepath = f"reconstructions/ROI/intensity/{fiber_name}_intensity.npy"
+    intensity = np.load(filepath)
+    
+    rmin, rmax, cmin, cmax = select_roi_opencv(intensity, 0.3)
+    
+    #salvar os limites do recorte para aplicar o mesmo na compressão
+    info = {
+        "rmin": float(rmin),
+        "rmax": float(rmax),
+        "cmin": float(cmin),
+        "cmax": float(cmax)
+    }
+        
+    filepath = f"reconstructions/ROI/ROI_measure.json"
+    save_json(filepath, info)

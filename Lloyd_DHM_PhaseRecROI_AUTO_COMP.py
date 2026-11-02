@@ -11,13 +11,25 @@ Links-->          - https://github.com/catrujilla/pyDHM
 
 """  
 #%% Hologram Reconstruction Routine for Lloyd Mirror Common Path DHM
+import os
+import sys
+
+PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
+if PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT)
+
+
+def fiber_output_root(filenameHolo):
+    prefix = re.split(r"[_.]+", filenameHolo)[0]
+    return os.path.join("reconstructions", "fiber", f"{prefix}_glicerina", filenameHolo)
+
+
 import importlib
 from pyDHM import utils
 importlib.reload(utils)
 import time
 
 from skimage.restoration import denoise_nl_means
-
 
 from matplotlib.ticker import MultipleLocator
 
@@ -38,6 +50,7 @@ import cv2
 
 import modules.autoOrderDetection as aod
 import modules.compressionPipeline as cd
+import modules.processUtils as procUtils
 import modules.readResults as readRes
 from modules.processUtils import select_roi_opencv, segment_fiber_grabcut_seeds, segment_fiber_grabcut, Rect_Window, pre_process, variance_norm, calc_zobj
 
@@ -575,12 +588,15 @@ def autoOrderSelect(filenameHolo, u1, u1r, onlyOrderPlus1=True):
     FT_ref = np.fft.fftshift(np.fft.fft2(u1r))
     ref_filter, _ = aod.filter_center_plus1(FT_ref, plus1_center, circle_radius)
 
-    filepath = f"reconstructions/fiber/{filenameHolo}/hologram/holo_order"
-    
-    np.save(filepath+"_ref_filter.npy", ref_filter)
+    base = fiber_output_root(filenameHolo)
+    hologram_dir = os.path.join(base, "hologram")
+    os.makedirs(hologram_dir, exist_ok=True)
+    filepath = os.path.join(hologram_dir, "holo_order")
+
+    np.save(filepath + "_ref_filter.npy", ref_filter)
 
     jsonPath = filepath + "_infoOrderCenter.json"
-    readRes.save_json(jsonPath, {"orderCenterx":plus1_center[1], "orderCentery":plus1_center[0], "circleRadius":circle_radius})
+    procUtils.save_json(jsonPath, {"orderCenterx": plus1_center[1], "orderCentery": plus1_center[0], "circleRadius": circle_radius})
 
     return ft_holo, x_min, y_min, holo_filter, ref_filter
 
@@ -611,7 +627,7 @@ def runCoolChic(filenameHolo, lambda_now):
 
     jsonPath = filepath + "_infoMinMax.json"
     
-    info = readRes.load_json(jsonPath)
+    info = procUtils.load_json(jsonPath)
     minR, maxR, minI, maxI = (info[k] for k in ("minR", "maxR", "minI", "maxI"))
         
     holo_filter = cd.denormalizeRealImag(filenameHolo, lambda_now, bits, minR, maxR, minI, maxI, filename="holo_order")
@@ -636,7 +652,10 @@ def normalizeAndSaveHolo(holo_filter, filenameHolo):
     bits = 8
 
     #if we arent using thee holo_order change it back to holo here
-    filepath = f"reconstructions/fiber/{filenameHolo}/hologram/holo_order"
+    base = fiber_output_root(filenameHolo)
+    hologram_dir = os.path.join(base, "hologram")
+    os.makedirs(hologram_dir, exist_ok=True)
+    filepath = os.path.join(hologram_dir, "holo_order")
 
     #normalizar de complexo para duas matrizes de inteiro
     holo_real, holo_imag, minR, maxR, minI, maxI = cd.normalizeComplexMatrix(holo_filter, bits)
@@ -654,7 +673,7 @@ def normalizeAndSaveHolo(holo_filter, filenameHolo):
     }
     
     jsonPath = filepath + "_infoMinMax.json"
-    readRes.save_json(jsonPath, info)
+    procUtils.save_json(jsonPath, info)
 
     #salvar o holograma bruto so com a ordem +1 para a análise
     np.save(filepath+"PlusOne.npy", holo_filter)
@@ -686,10 +705,11 @@ def loadPropagationInfo(holo_filter, filenameHolo, onlyOrderPlus1=True):
     holo_filter : ndarray
         the full hologram in its complex form, with the information of the order +1 only
     '''   
-    filepath = f"reconstructions/fiber/{filenameHolo}/"
-    jsonPath = filepath + "hologram/holo_order_infoOrderCenter.json"
+    base = fiber_output_root(filenameHolo)
+    filepath = base + "/"
+    jsonPath = os.path.join(base, "hologram", "holo_order_infoOrderCenter.json")
     
-    info = readRes.load_json(jsonPath)
+    info = procUtils.load_json(jsonPath)
 
     cx, cy, radius = int(info["orderCenterx"]), int(info["orderCentery"]), int(info["circleRadius"])
     
@@ -704,7 +724,7 @@ def loadPropagationInfo(holo_filter, filenameHolo, onlyOrderPlus1=True):
     jsonPath = filepath + "reference/holo_order_infoProp_z.json"
             
     #buscar a distância z selecionada na propagaçao do holograma original
-    info = readRes.load_json(jsonPath)
+    info = procUtils.load_json(jsonPath)
     zextr = float(info["zextr"])
 
     return zextr, holo_filter
@@ -748,8 +768,21 @@ def propagationOnZ(holo_filter, x_min, y_min, filenameHolo, onlyOrderPlus1=True)
     output = numProp.angular_spectrum(holo_filter, 0, wavelength, dx, dx)
     intensity = utils.intensity(output, False)
 
-    filepath = f"reconstructions/fiber/{filenameHolo}/reference/holo_order"
-   
+    base = fiber_output_root(filenameHolo)
+    ref_dir = os.path.join(base, "reference")
+    os.makedirs(ref_dir, exist_ok=True)
+    filepath = os.path.join(ref_dir, "holo_order")
+
+    # salvar as intensidades de cada holograma para poder selecionar mais tarde para retirar o ROI standart 
+    filepathROI = os.path.join("reconstructions", "ROI", "intensity", f"{filenameHolo}_intensity.npy")
+    os.makedirs(os.path.dirname(filepathROI), exist_ok=True)
+    np.save(filepathROI, intensity)
+
+    filepath = f"reconstructions/ROI/ROI_measure.json"
+    info = procUtils.load_json(filepath)
+    rmin, rmax, cmin, cmax = (int(info[k]) for k in ("rmin", "rmax", "cmin", "cmax"))
+
+    '''
     rmin, rmax, cmin, cmax = select_roi_opencv(intensity, 0.3)
 
     #salvar os limites do recorte para aplicar o mesmo na compressão
@@ -761,7 +794,8 @@ def propagationOnZ(holo_filter, x_min, y_min, filenameHolo, onlyOrderPlus1=True)
     }
     
     jsonPath = filepath + "_infoROI.json"
-    readRes.save_json(jsonPath, info)
+    procUtils.save_json(jsonPath, info)
+    '''
 
     # z em mm
     z = np.linspace(-4, 14, nzpts)
@@ -811,7 +845,7 @@ def propagationOnZ(holo_filter, x_min, y_min, filenameHolo, onlyOrderPlus1=True)
 
     #salvar o valor do z
     jsonPath = filepath + "_infoProp_z.json"
-    readRes.save_json(jsonPath, {"zextr": float(zextr)})
+    procUtils.save_json(jsonPath, {"zextr": float(zextr)})
 
     #Plot focus metric
     plt.figure(figsize=(5,4))
@@ -908,9 +942,10 @@ def refocusOptPlaneChooseROI(holo_filter, zextr, filenameHolo, ref_filter=None, 
         intensity of the reference ROI
     '''
 
-    filepath = f"reconstructions/fiber/{filenameHolo}/hologram/"
+    base = fiber_output_root(filenameHolo)
+    filepath = os.path.join(base, "hologram")
     if ref_filter is None:
-        ref_filter = np.load(filepath + "holo_order_ref_filter.npy")
+        ref_filter = np.load(os.path.join(filepath, "holo_order_ref_filter.npy"))
 
     # Refocusing to the optimum plane
     output = numProp.angular_spectrum(holo_filter, zextr*1.0e-3, wavelength, dx, dx)
@@ -919,19 +954,25 @@ def refocusOptPlaneChooseROI(holo_filter, zextr, filenameHolo, ref_filter=None, 
     # Mostrar intensidade para escolher ROI
     intensity_view = utils.intensity(output, False)
 
-    filepath = f"reconstructions/fiber/{filenameHolo}/reference/"
-    jsonPath = filepath + "holo_order_infoROI_view.json"
+    filepath = os.path.join(base, "reference")
+    os.makedirs(filepath, exist_ok=True)
+    jsonPath = os.path.join(filepath, "holo_order_infoROI_view.json")
 
     #se for para o holograma descomprido, ir buscar medidas usadas no original
     if applyCoolChic:    
-        info = readRes.load_json(jsonPath)
+        info = procUtils.load_json(jsonPath)
         rmin, rmax, cmin, cmax = (int(info[k]) for k in ("rmin", "rmax", "cmin", "cmax"))
     else:
-        rmin, rmax, cmin, cmax = select_roi_opencv(intensity_view, 0.3)
-
+        #rmin, rmax, cmin, cmax = select_roi_opencv(intensity_view, 0.3)
+        
         #salvar os limites do recorte para aplicar o mesmo na compressão
-        readRes.save_json(jsonPath, {"rmin": float(rmin), "rmax": float(rmax),
-                                    "cmin": float(cmin), "cmax": float(cmax)})
+        #procUtils.save_json(jsonPath, {"rmin": float(rmin), "rmax": float(rmax),
+        #                            "cmin": float(cmin), "cmax": float(cmax)})
+
+        filepath = f"reconstructions/ROI/ROI_measure.json"
+        info = procUtils.load_json(filepath)
+        rmin, rmax, cmin, cmax = (int(info[k]) for k in ("rmin", "rmax", "cmin", "cmax"))
+                   
 
     # Extrair ROI
     holo_roi = output[rmin:rmax, cmin:cmax]
@@ -946,13 +987,14 @@ def refocusOptPlaneChooseROI(holo_filter, zextr, filenameHolo, ref_filter=None, 
     ref_intensity = utils.intensity(ref_roi, False)
 
     if applyCoolChic:
-        filepath = f"reconstructions/fiber/{filenameHolo}/coolchic/lmbda_{lambda_now}/"
+        filepath = os.path.join(base, "coolchic", f"lmbda_{lambda_now}")
     else:
-        filepath = f"reconstructions/fiber/{filenameHolo}/hologram/"
-        
+        filepath = os.path.join(base, "hologram")
+    os.makedirs(filepath, exist_ok=True)
+
     #salvar a amplitude e a fase para possivel análise
-    np.save(filepath+"amplitude.npy", intensity)
-    np.save(filepath+"phase.npy", phase)
+    np.save(os.path.join(filepath, "amplitude.npy"), intensity)
+    np.save(os.path.join(filepath, "phase.npy"), phase)
 
     return phase, intensity, phase_ref, ref_intensity
 
@@ -1090,9 +1132,11 @@ def phaseUnwrapping(phase, phase_ref, filenameHolo, lambda_now=None, applyCoolCh
     phase_dif = unwrp_phase - unwrp_phase_ref
 
     if applyCoolChic:
+        #arranjar este caminho que esta broken
         filepath = f"reconstructions/fiber/{filenameHolo}/coolchic/lmbda_{lambda_now}/phase/"
     else:
-        filepath = f"reconstructions/fiber/{filenameHolo}/reference/"
+        base = fiber_output_root(filenameHolo)
+        filepath = os.path.join(base, "reference")
         
     #salvar a amplitude e a fase para possivel análise
     np.save(filepath+"phaseWrapped.npy", phase)
@@ -1482,10 +1526,13 @@ def showDenoisingRes(phase_denoised, factor_k0, X, Y, xxc, yyc, filenameHolo, la
 
     # Ajustar layout
     plt.tight_layout()
+    
     if applyCoolChic:
+        # corrigir a pasta para guardar
         filepath = f"reconstructions/fiber/{filenameHolo}/coolchic/lmbda_{lambda_now}/3D/"
     else:
-        filepath = f"reconstructions/fiber/{filenameHolo}/3Dgraph/"
+        base = fiber_output_root(filenameHolo)
+        filepath = os.path.join(base, "3Dgraph")
         
     plt.savefig(filepath + '3d-' + filenameHolo + '.png')
     plt.show()

@@ -1,8 +1,16 @@
 # %% -------------------------------------------------------------------------------
 
+import os
+import sys
+
+PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
+if PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT)
+
 import Lloyd_DHM_PhaseRecROI_AUTO_COMP as autoComp
 import modules.readResults as readR
 import modules.pda_metric as metricP
+import modules.processUtils as procUtils
 import numpy as np
 import re
 from collections import defaultdict
@@ -97,7 +105,7 @@ def numericalReconstructionAuto(fiber, path, ref):
     phase_denoised = autoComp.phaseDenoising(phase_corr)
 
     autoComp.showDenoisingRes(phase_denoised, factor_k0, X, Y, xxc, yyc, filenameHolo)
-
+    
 
 def numericalReconstructionAuto_CoolChic(fiber, lmbda):
     #ir buscar o holograma que correu sem compressão e comprimir, descomprimir e desnormalziar
@@ -234,7 +242,7 @@ def getMetricsCombined(allFibers):
         readR.getRDGraphCombined(df_holo, df_phase, df_pda, [metric], isAll=True)
 
 #########
-#runReconstruction(allFibers)
+runReconstruction(fibersB)
 #runCoolChic(fibersB)
 
 arr2 = ["FiberB_0", "FiberB_1"]
@@ -244,4 +252,4 @@ arr3 = [x for x in fibersB if x not in arr2]
 #getMetricsPhase(allFibers, isCategory=True, isAll=True)
 #getMetricsCombined(allFibers)
 
-
+#procUtils.chooseStandartROI(fibersA[0])
