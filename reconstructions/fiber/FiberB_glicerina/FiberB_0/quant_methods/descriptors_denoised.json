@@ -1,0 +1,20 @@
+{
+    "mean_OPD": -2.450636447339513e-08,
+    "std_OPD": 3.865771986186785e-07,
+    "CV": -15.774563339999236,
+    "IOPD": -1.3151356588915178e-15,
+    "mean_gradient": 0.027449814652700664,
+    "laplacian_variance": 674900543485.821,
+    "surface_area_ratio": 1.00431087187925,
+    "mean_local_variance": 9.153982216371291e-16,
+    "entropy": 3.0744811471151485,
+    "skewness": -1.9224005574528855,
+    "kurtosis": 5.869812601666043,
+    "glcm_contrast": 0.0665972298923631,
+    "glcm_homogeneity": 0.9804007386511212,
+    "glcm_energy": 0.3675073914289299,
+    "glcm_correlation": 0.998532473587838,
+    "coherence": 0.5958954970320194,
+    "correlation_length": 2.5437499999999998e-05,
+    "dominant_spatial_freq": 3949.8858236129117
+}

@@ -47,6 +47,7 @@ from matplotlib import pyplot as plt
 import numpy as np
 import skimage as ski
 import cv2
+from modules.reconstructionState import ReconstructionParams, ReconstructionState
 
 import modules.autoOrderDetection as aod
 import modules.compressionPipeline as cd
@@ -160,34 +161,17 @@ showDenoisingRes(phase_denoised, factor_k0, X, Y, xxc, yyc, filenameHolo, lambda
 # .............................................
 # Settings
 # .............................................
-wavelength = 632.8e-9       # wavelength [m]
-Mtransv = 12.8    # Microscope Objective Magnification [x]
+recParams = ReconstructionParams(
+    wavelength=632.8e-9,
+    mtransv=12.8,
+    decmt=False,
+    nout=2600
+)
+
 Subtract = False
 AutoOrderSelect = True
 saveFiles = True
 folder = "fiber" #onde vão ficar guardadas as imagens
-
-# .............................................
-# Pixel subsampling in case of color camera
-# .............................................
-Decmt = False        # Decimate (1/2) pixel sampling?
-Nout  = 2600        # Processed Hologram size (square) 
-if Decmt:
-    dx = 4.4e-6     # pixel pitch (4.4 um)*2 (color camera: Guppy Pro 503c)
-else:
-    dx = 2.2e-6     # pixel pitch (2.2 um)*2 (mono camera: Guppy Pro 503b)
-# .............................................
-
-# --- transformação zi -> zo ---
-def zi_to_zo(zi):
-    fl = 16
-    zo = 1000*zi*fl/(Mtransv*(zi + fl*Mtransv))
-    return zo
-
-def zo_to_zi(zo):
-    fl = 16
-    zi = (zo*fl*Mtransv**2)/(-zo*Mtransv + fl)
-    return zi
 
 # .............................................
 # 1.2 - File opennig
@@ -292,7 +276,7 @@ def loadHolograms(path=None, pathRef=None):
 #       for reconstruction
 # ........................................................
 # Sample Hologram pre-processing
-def applyPreProcessing(imgHolo, imgHoloRef):
+def applyPreProcessing(recParams, imgHolo, imgHoloRef):
     '''
     takes both holograms and apply pre processing, like padding if needed, and
     appodization
@@ -317,11 +301,11 @@ def applyPreProcessing(imgHolo, imgHoloRef):
         the hologram after being pre-processed, before apodization/contrast
 
     '''
-    procHolo = pre_process(imgHolo, Nout, Decmt)
+    procHolo = pre_process(recParams, imgHolo)
     print(procHolo.shape)
     # utils.imageShow(procHolo, 'pre-proc. input field')
     # Reference Hologram pre-processing
-    procRef = pre_process(imgHoloRef, Nout, Decmt)
+    procRef = pre_process(recParams, imgHoloRef)
     print(procRef.shape)
     # utils.imageShow(procRef, 'pre-proc. ref field')
 
@@ -348,7 +332,7 @@ def applyPreProcessing(imgHolo, imgHoloRef):
     # utils.imageShow(u1, 'Apodized Hologram')   
     # utils.imageShow(u1r, 'Apodized Ref')   
 
-    zCrit = 2.0e2*dx*dx*N/wavelength
+    zCrit = 2.0e2*recParams.dx*recParams.dx*N/recParams.wavelength
     print(f"z critical = {zCrit: .3f} cm")
 
     return u1, u1r, procHolo
@@ -387,7 +371,7 @@ def manualOrderSelection(u1, u1r):
     return ft_holo, holo_filter, ref_filter
 
     
-def showInitialHologramState(ft_holo, imgHolo, procHolo, procRef, u1):
+def showInitialHologramState(recParams, ft_holo, imgHolo, procHolo, procRef, u1):
     '''
     show the hologram, the reference, the hologram spectrum and the contrast hologram
 
@@ -409,7 +393,7 @@ def showInitialHologramState(ft_holo, imgHolo, procHolo, procRef, u1):
     M, N = u1.shape
     ft_holo_int = utils.intensity(ft_holo, True)
     
-    if Decmt:
+    if recParams.decmt:
         r0 = int(np.floor((M - M0/2) / 2))
         r1 = int(np.floor((M + M0/2) / 2))
         c0 = int(np.floor((N - N0/2) / 2))
@@ -429,24 +413,24 @@ def showInitialHologramState(ft_holo, imgHolo, procHolo, procRef, u1):
     # Spatial Coordinates
     Mc, Nc = procHoloc.shape
 
-    xxc = dx * (np.arange(Nc) - Nc/2)
-    yyc = dx * (np.arange(Mc) - Mc/2)
+    xxc = recParams.dx * (np.arange(Nc) - Nc/2)
+    yyc = recParams.dx * (np.arange(Mc) - Mc/2)
 
     um_unit_scale = 1.0e6          # meters → micrometers
-    obj_scale = um_unit_scale * (Mtransv**(-1))
+    obj_scale = um_unit_scale * (recParams.mtransv**(-1))
 
     xxc *= obj_scale
     yyc *= obj_scale
 
-    dy = dx
-    Lxx = Nc * dx
+    dy = recParams.dx
+    Lxx = Nc * recParams.dx
     Lyy = Mc * dy
 
     # Frequency Coordinates:
     # fx = np.fft.fftshift(np.fft.fftfreq(Nc, d=dx))
     # fy = np.fft.fftshift(np.fft.fftfreq(Mc, d=dy))
 
-    fx = np.arange(-1/(2*dx), 1/(2*dx), 1/Lxx)
+    fx = np.arange(-1/(2*recParams.dx), 1/(2*recParams.dx), 1/Lxx)
     fy = np.arange(-1/(2*dy), 1/(2*dy), 1/Lyy)
 
     # Ensure exact length match (important for numerical safety)
@@ -518,7 +502,7 @@ def showInitialHologramState(ft_holo, imgHolo, procHolo, procRef, u1):
 # STEP 2.1 - Optional auto order +1 selection
 #  ****************************************************
 #if AutoOrderSelect:
-def autoOrderSelect(filenameHolo, u1, u1r, onlyOrderPlus1=True):
+def autoOrderSelect(recParams, filenameHolo, u1, u1r, onlyOrderPlus1=True):
     '''
     applies the Fourier Transform and utilizes the autoOrderSelection module to localize and create a mask
     on the order +1, and apply it to the hologram in the frequency domain
@@ -563,13 +547,13 @@ def autoOrderSelect(filenameHolo, u1, u1r, onlyOrderPlus1=True):
     #devolve o centro da ordem +1, altura do retangulo de ordem +1, largura do retangulo de ordem +1, distancia ate ao centro da ordem 1 vert, e horiz
     plus1_center, plus1_m, plus1_n, p, q, col_min, row_min, width, height, circle_radius = aod.get_plus1(bw)
 
-    dy = dx
+    dy = recParams.dx
 
-    x_vec = np.arange(-N/2, N/2) * dx
+    x_vec = np.arange(-N/2, N/2) * recParams.dx
     y_vec = np.arange(-M/2, M/2) * dy
     X, Y = np.meshgrid(x_vec, y_vec)
 
-    k = (2 * np.pi) / wavelength
+    k = (2 * np.pi) / recParams.wavelength
 
     #devolve a ordem +1 e NAO compensa o tilt linear
     compensated_holo, masked = aod.filter_center_plus1(ft_holo, plus1_center, circle_radius)
@@ -619,7 +603,8 @@ def runCoolChic(filenameHolo, lambda_now):
     '''
 
     bits = 8
-    filepath = f"reconstructions/fiber/{filenameHolo}/hologram/holo_order"
+    baseCoolChic = fiber_output_root(filenameHolo)
+    filepath = os.path.join(baseCoolChic, "hologram", "holo_order")
 
     print(f"A comprimir {filenameHolo} com lambda {lambda_now}...")
     cd.compress_hologram(filenameHolo, lambda_now, bits, filename="holo_order")
@@ -729,7 +714,7 @@ def loadPropagationInfo(holo_filter, filenameHolo, onlyOrderPlus1=True):
 
     return zextr, holo_filter
 
-def propagationOnZ(holo_filter, x_min, y_min, filenameHolo, onlyOrderPlus1=True):
+def propagationOnZ(recParams, holo_filter, x_min, y_min, filenameHolo, onlyOrderPlus1=True):
     '''
     it apply propagation on a certain number of z planes to find the plane where the hologram is the most focused
     also pads the hologram in case it had only the order +1 size                
@@ -765,7 +750,7 @@ def propagationOnZ(holo_filter, x_min, y_min, filenameHolo, onlyOrderPlus1=True)
     print(holo_filter.size)
 
     # Inicialização
-    output = numProp.angular_spectrum(holo_filter, 0, wavelength, dx, dx)
+    output = numProp.angular_spectrum(holo_filter, 0, recParams.wavelength, recParams.dx, recParams.dx)
     intensity = utils.intensity(output, False)
 
     base = fiber_output_root(filenameHolo)
@@ -778,8 +763,8 @@ def propagationOnZ(holo_filter, x_min, y_min, filenameHolo, onlyOrderPlus1=True)
     os.makedirs(os.path.dirname(filepathROI), exist_ok=True)
     np.save(filepathROI, intensity)
 
-    filepath = f"reconstructions/ROI/ROI_measure.json"
-    info = procUtils.load_json(filepath)
+    filepathROImes = f"reconstructions/ROI/ROI_measure.json"
+    info = procUtils.load_json(filepathROImes)
     rmin, rmax, cmin, cmax = (int(info[k]) for k in ("rmin", "rmax", "cmin", "cmax"))
 
     '''
@@ -805,14 +790,14 @@ def propagationOnZ(holo_filter, x_min, y_min, filenameHolo, onlyOrderPlus1=True)
     for ii, zi in enumerate(z):
 
         # Propagação (converter mm em m)
-        output = numProp.angular_spectrum(holo_filter, zi * 1e-3, wavelength, dx, dx)
+        output = numProp.angular_spectrum(holo_filter, zi * 1e-3, recParams.wavelength, recParams.dx, recParams.dx)
 
         # Intensidade e métrica de foco
         intensity = utils.intensity(output, False)
         fmetric[ii] = variance_norm(intensity[rmin:rmax, cmin:cmax])
 
         # Object distance (from MO)
-        zo = calc_zobj(zi, 160, 10, Mtransv)
+        zo = calc_zobj(zi, 160, 10, recParams.mtransv)
 
         # (opcional debug)
         print(f"zi = {zi:.2f} mm, zo = {1e3*zo:.2f} um, metric = {fmetric[ii]:.4e}")
@@ -879,7 +864,7 @@ def propagationOnZ(holo_filter, x_min, y_min, filenameHolo, onlyOrderPlus1=True)
 
     # ticks no eixo superior (ajustados!)
     # secax.xaxis.set_major_locator(MultipleLocator(0.01))  # ajusta conforme desejado
-    secax = ax.secondary_xaxis('top', functions=(zi_to_zo, zo_to_zi))
+    secax = ax.secondary_xaxis('top', functions=(recParams.zi_to_zo, recParams.zo_to_zi))
     secax.set_xlabel(r'$z_o (\mu m)$')
     # secax.xaxis.set_major_locator(MultipleLocator(10.0))  # ajusta conforme desejado
     # secax.xaxis.set_minor_locator(MultipleLocator(5.0)) # ticks pequenos
@@ -895,7 +880,7 @@ def propagationOnZ(holo_filter, x_min, y_min, filenameHolo, onlyOrderPlus1=True)
     plt.show()
 
     # Image and Object plane focus distance:
-    zobjt_extr = calc_zobj(zextr, 160, 10, Mtransv)
+    zobjt_extr = calc_zobj(zextr, 160, 10, recParams.mtransv)
     print(f"Zfimg = {zextr:.6f} mm")
     print(f"Zfobj = {zobjt_extr*1000:6f} \u00B5m")
 
@@ -948,8 +933,8 @@ def refocusOptPlaneChooseROI(holo_filter, zextr, filenameHolo, ref_filter=None, 
         ref_filter = np.load(os.path.join(filepath, "holo_order_ref_filter.npy"))
 
     # Refocusing to the optimum plane
-    output = numProp.angular_spectrum(holo_filter, zextr*1.0e-3, wavelength, dx, dx)
-    ref_output = numProp.angular_spectrum(ref_filter, zextr*1.0e-3, wavelength, dx, dx)
+    output = numProp.angular_spectrum(holo_filter, zextr*1.0e-3, recParams.wavelength, recParams.dx, recParams.dx)
+    ref_output = numProp.angular_spectrum(ref_filter, zextr*1.0e-3, recParams.wavelength, recParams.dx, recParams.dx)
 
     # Mostrar intensidade para escolher ROI
     intensity_view = utils.intensity(output, False)
@@ -998,7 +983,7 @@ def refocusOptPlaneChooseROI(holo_filter, zextr, filenameHolo, ref_filter=None, 
 
     return phase, intensity, phase_ref, ref_intensity
 
-def showIntensityPhase(phase, intensity, phase_ref, ref_intensity):  
+def showIntensityPhase(recParams, phase, intensity, phase_ref, ref_intensity):  
     '''
     shows intensity and phase of hologram and reference in a 2x2 subplot
     with spatial coordinates
@@ -1028,10 +1013,10 @@ def showIntensityPhase(phase, intensity, phase_ref, ref_intensity):
     # --------------------------------
     # Coordenadas Espaciais para o Gráfico
     Mc, Nc = phase.shape
-    xxc = dx * (np.arange(Nc) - Nc/2)
-    yyc = dx * (np.arange(Mc) - Mc/2)
+    xxc = recParams.dx * (np.arange(Nc) - Nc/2)
+    yyc = recParams.dx * (np.arange(Mc) - Mc/2)
     um_unit_scale = 1.0e6          
-    obj_scale = um_unit_scale * (Mtransv**(-1))
+    obj_scale = um_unit_scale * (recParams.mtransv**(-1))
     xxc *= obj_scale
     yyc *= obj_scale
 
@@ -1133,16 +1118,16 @@ def phaseUnwrapping(phase, phase_ref, filenameHolo, lambda_now=None, applyCoolCh
 
     if applyCoolChic:
         #arranjar este caminho que esta broken
-        filepath = f"reconstructions/fiber/{filenameHolo}/coolchic/lmbda_{lambda_now}/phase/"
+        filepath = os.path.join(fiber_output_root(filenameHolo), "coolchic", f"lmbda_{lambda_now}", "phase")    
     else:
         base = fiber_output_root(filenameHolo)
         filepath = os.path.join(base, "reference")
         
     #salvar a amplitude e a fase para possivel análise
-    np.save(filepath+"phaseWrapped.npy", phase)
-    np.save(filepath+"phaseUnwrapped.npy", unwrp_phase_og)
-    np.save(filepath+"phaseUnwrappedGaussian.npy", unwrp_phase)
-    np.save(filepath+"phaseUnwrappedDiff.npy", phase_dif)
+    np.save(os.path.join(filepath, "phaseWrapped.npy"), phase)
+    np.save(os.path.join(filepath, "phaseUnwrapped.npy"), unwrp_phase_og)
+    np.save(os.path.join(filepath, "phaseUnwrappedGaussian.npy"), unwrp_phase)
+    np.save(os.path.join(filepath, "phaseUnwrappedDiff.npy"), phase_dif)
   
     return phase_dif
 # ------------------------------------------
@@ -1186,7 +1171,7 @@ def grabcutSegmentation(phase_dif, filenameHolo, applyCoolChic, saveReference=Tr
         background mask (complement of the fiber mask)
     '''
     
-    segm_method = 1
+    segm_method = 2
 
     print("Select BACKGROUND region / Selecione região de FUNDO")
 
@@ -1350,7 +1335,7 @@ def showCorrectedDifference(phase_dif, phase_corr, xxc, yyc):
 #%% ---------------------------------------------------
 # Hologram Phase Unwrapping Results (3D Plots)
 # ---------------------------------------------------
-def showPhaseUnwrapRes(xxc, yyc, phase_corr):    
+def showPhaseUnwrapRes(recParams, xxc, yyc, phase_corr):    
     '''
     plots the 3D OPD (Optical Path Difference) surface profile from the
     plane-corrected phase map, converting phase to optical path difference
@@ -1381,7 +1366,7 @@ def showPhaseUnwrapRes(xxc, yyc, phase_corr):
     X, Y = np.meshgrid(xxc, yyc)
 
     delta_n = np.abs(ir_glycerin - ir_celullose)
-    factor_k0 = (1e6*wavelength/(2*np.pi*delta_n))
+    factor_k0 = (1e6*recParams.wavelength/(2*np.pi*delta_n))
     optThickness = -(phase_corr * factor_k0)
 
     fig = plt.figure(figsize=(10, 7))
@@ -1529,10 +1514,11 @@ def showDenoisingRes(phase_denoised, factor_k0, X, Y, xxc, yyc, filenameHolo, la
     
     if applyCoolChic:
         # corrigir a pasta para guardar
-        filepath = f"reconstructions/fiber/{filenameHolo}/coolchic/lmbda_{lambda_now}/3D/"
+        baseCoolChic = fiber_output_root(filenameHolo)
+        filepath = os.path.join(baseCoolChic, "coolchic", f"lmbda_{lambda_now}", "3D")
     else:
         base = fiber_output_root(filenameHolo)
         filepath = os.path.join(base, "3Dgraph")
-        
-    plt.savefig(filepath + '3d-' + filenameHolo + '.png')
+
+    plt.savefig(os.path.join(filepath, f"3d-{filenameHolo}.png"))
     plt.show()

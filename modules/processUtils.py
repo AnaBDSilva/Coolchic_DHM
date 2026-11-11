@@ -19,11 +19,8 @@ import json
 import os
 import re
 
-try:
-    from modules import readResults as readRes
-except ImportError:
-    import readResults as readRes
-
+import matplotlib.pyplot as plt
+from matplotlib.widgets import RectangleSelector
 
 def fiber_output_root(filenameHolo):
     prefix = re.split(r"[_.]+", filenameHolo)[0]
@@ -32,7 +29,7 @@ def fiber_output_root(filenameHolo):
 # ***********************************************
 # Begin function definitions:
 # ***********************************************
-def select_roi_opencv(image, scale=0.3):
+def select_roi_opencv(image, scale=0.3, method="opencv", initial_coords=None):
     """
     Manual ROI selection with scaling (fix for large images).
 
@@ -54,20 +51,39 @@ def select_roi_opencv(image, scale=0.3):
     resized = cv2.resize(img_norm, (int(w*scale), int(h*scale)))
 
     # Seleção ROI
-    roi = cv2.selectROI("Select ROI", resized, showCrosshair=True)
-    cv2.destroyAllWindows()
+    if method == "opencv":
+        roi = cv2.selectROI("Select ROI", resized, showCrosshair=True)
+        cv2.destroyAllWindows()
 
-    x, y, rw, rh = roi
-
-    # Converter coords para imagem original
-    x = int(x / scale)
-    y = int(y / scale)
-    rw = int(rw / scale)
-    rh = int(rh / scale)
-
-    rmin, rmax = y, y + rh
-    cmin, cmax = x, x + rw
-
+        x, y, rw, rh = roi
+        
+        # Converter coords para imagem original
+        x = int(x / scale)
+        y = int(y / scale)
+        rw = int(rw / scale)
+        rh = int(rh / scale)
+        
+        rmin, rmax = y, y + rh
+        cmin, cmax = x, x + rw
+        
+    elif method == "matplotlib":
+        scaled_coords = None
+        if initial_coords is not None:
+            scaled_coords = [int(c * scale) for c in initial_coords]
+            
+        roi = select_roi_interactive(resized, initial_coords=scaled_coords)
+        
+        if roi[0] is None: # Se o utilizador fechar sem desenhar
+            return None, None, None, None
+            
+        s_rmin, s_rmax, s_cmin, s_cmax = roi
+        
+        # Converter coords devolvidas para a imagem original (Matplotlib style)
+        rmin = int(s_rmin / scale)
+        rmax = int(s_rmax / scale)
+        cmin = int(s_cmin / scale)
+        cmax = int(s_cmax / scale)
+        
     return rmin, rmax, cmin, cmax
 
 def fit_plane(x, y, z):
@@ -162,7 +178,7 @@ def segment_fiber_grabcut(image, fiber_name, applyCoolChic, saveReference, scale
     base = fiber_output_root(fiber_name)
     filepath = os.path.join(base, "reference")
     if applyCoolChic:
-        jsonPathGrabcut = f"{filepath}holo_order_infoROI_grabcut.json"
+        jsonPathGrabcut = os.path.join(filepath, "holo_order_infoROI_grabcut.json")
         try:
             with open(jsonPathGrabcut, 'r') as file:
                 info_grabcut = json.load(file)
@@ -194,7 +210,7 @@ def segment_fiber_grabcut(image, fiber_name, applyCoolChic, saveReference, scale
             "rw": rect[2],
             "rh": rect[3]
         }
-        with open(f"{filepath}holo_order_infoROI_grabcut.json", 'w') as file:
+        with open(os.path.join(filepath, "holo_order_infoROI_grabcut.json"), 'w') as file:
             json.dump(info_grabcut, file, indent=4)
 
     # ------------------------------------------
@@ -287,7 +303,7 @@ def Rect_Window(Nx, Ny, eta, w):
 
     return window
 
-def pre_process(IH, Nout, isDecimate):
+def pre_process(recParams, IH):
     """
     Parameters
     ----------
@@ -300,7 +316,7 @@ def pre_process(IH, Nout, isDecimate):
     """
 
     # Cut original hologram (decimation)
-    if isDecimate:
+    if recParams.decmt:
         IH = IH[::2, ::2]
 
     M, N = IH.shape
@@ -311,21 +327,21 @@ def pre_process(IH, Nout, isDecimate):
 
     M2 = M // 2
     N2 = N // 2
-    Nout2 = Nout // 2
+    Nout2 = recParams.nout // 2
     Nin2 = Nin // 2
 
     # Case 1: crop to smaller square
-    if Nout <= Nin:
+    if recParams.nout <= Nin:
         print("Case 1")
         u1 = IH[M2 - Nout2 : M2 + Nout2,
                 N2 - Nout2 : N2 + Nout2]
 
     # Case 2: crop to square then pad
-    elif Nout > Nin and Nout < Nmax:
+    elif recParams.nout > Nin and recParams.nout < Nmax:
         print("Case 2")
         IH = IH[M2 - Nin2 : M2 + Nin2,
                 N2 - Nin2 : N2 + Nin2]
-        pad = (Nout - Nin) // 2
+        pad = (recParams.nout - Nin) // 2
         u1 = np.pad(IH,
                     ((pad, pad), (pad, pad)),
                     mode='constant')
@@ -333,8 +349,8 @@ def pre_process(IH, Nout, isDecimate):
     # Case 3: pad directly
     else:
         print("Case 3")
-        pad_M = (Nout - M) // 2
-        pad_N = (Nout - N) // 2
+        pad_M = (recParams.nout - M) // 2
+        pad_N = (recParams.nout - N) // 2
         u1 = np.pad(IH,
                     ((pad_M, pad_M), (pad_N, pad_N)),
                     mode='constant')
@@ -355,13 +371,61 @@ def load_json(path):
     with open(path, 'r') as f:
         return json.load(f)
 
-# loads the specific fiber intensity and then allows for the ROI 
+def select_roi_interactive(image, initial_coords=None):
+    fig, ax = plt.subplots(figsize=(8, 8))
+    ax.imshow(image, cmap='gray')
+    ax.set_title("Arrasta pelo meio para mover. Fecha a janela para guardar.")
+
+    final_coords = []
+
+    def onselect(eclick, erelease):
+        x1, y1 = eclick.xdata, eclick.ydata
+        x2, y2 = erelease.xdata, erelease.ydata
+        final_coords[:] = [min(y1, y2), max(y1, y2), min(x1, x2), max(x1, x2)]
+
+    #o interactive=True já permite arrastar pelo centro
+    selector = RectangleSelector(ax, onselect, interactive=True, useblit=True)
+
+    if initial_coords is not None:
+        rmin, rmax, cmin, cmax = initial_coords
+        selector.extents = (cmin, cmax, rmin, rmax)
+        final_coords[:] = [rmin, rmax, cmin, cmax]
+
+    plt.show(block=True)
+    while plt.fignum_exists(fig.number):
+        plt.pause(0.1)
+
+    #processar o resultado ao fechar a janela
+    if len(final_coords) == 4:
+        new_rmin, new_rmax, new_cmin, new_cmax = final_coords
+        
+        # se já existiam coordenadas, forçar largura e altura antigas
+        if initial_coords is not None:
+            orig_rmin, orig_rmax, orig_cmin, orig_cmax = initial_coords
+            height = orig_rmax - orig_rmin
+            width  = orig_cmax - orig_cmin
+            
+            #devolve a nova posição (x, y), mas com a largura e altura originais (w, h)
+            return int(new_rmin), int(new_rmin + height), int(new_cmin), int(new_cmin + width)
+
+        #se não existirem coordenadas, manter o que foi escolhido
+        return int(new_rmin), int(new_rmax), int(new_cmin), int(new_cmax)
+    return None, None, None, None
+
+
+# loads the specific fiber intensity and then allows for choosing the ROI standart
 def chooseStandartROI(fiber_name):
+    # load the intensity to choose the roi
     filepath = f"reconstructions/ROI/intensity/{fiber_name}_intensity.npy"
     intensity = np.load(filepath)
+
+    # call ROI for matplotlib
+    rmin, rmax, cmin, cmax = select_roi_opencv(intensity, scale=0.3, method="matplotlib")
     
-    rmin, rmax, cmin, cmax = select_roi_opencv(intensity, 0.3)
-    
+    if rmin is None:
+        print("Seleção de ROI cancelada.")
+        return
+  
     #salvar os limites do recorte para aplicar o mesmo na compressão
     info = {
         "rmin": float(rmin),

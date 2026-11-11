@@ -15,6 +15,7 @@ import glob
 import re
 import pandas as pd
 import matplotlib.pyplot as plt
+import modules.processUtils as procUtils
 import modules.readResults as readR
 
 from skimage.metrics import structural_similarity as ssim
@@ -219,13 +220,13 @@ def getAllFibersPhaseMetric(allFibers, isPhaseWrapped, metric='psnr'):
 ## Aplicar métricas de correlação e salvar os resultados                                                                                                              ##
 ########################################################################################################################################################################
 
-def applyCorrelationMetrics(base_dir=None):
+def applyCorrelationMetrics(base_dir=None, output_dir=None):
     if base_dir is None:
         script_dir = os.path.dirname(os.path.abspath(__file__))
         base_root = os.path.dirname(script_dir) 
         base_dir = os.path.join(base_root, "reconstructions", "fiber", "results", "numbers_of_results")
     if output_dir is None:
-        output_dir = os.path.join(os.path.dirname(os.path.dirname(base_dir)), "metrics_correlation")
+        output_dir = os.path.join(os.path.dirname(os.path.dirname(base_dir)), "correlation_metrics")
 
     for metric in ['psnr', 'ssim']:
         path_complex = os.path.join(base_dir, f"resultados_media_{metric}.json")
@@ -255,7 +256,7 @@ def applyCorrelationMetrics(base_dir=None):
         
         correlationPath = os.path.join(output_dir, f"correlacoes_finais_{metric}.json")
                 
-        readR.save_json(correlationPath, correlation_data)
+        procUtils.save_json(correlationPath, correlation_data)
 
 def loadAllMetricsJson(filepath, metric, element):
     df = pd.read_json(filepath)

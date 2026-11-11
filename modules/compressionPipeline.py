@@ -17,17 +17,18 @@ import re
 def create_fiber_structure(fiber_name, lambdas=["1e-1", "1e-2", "1e-3", "1e-4", "1e-5"]):
     prefix = re.split(r"[_.]+", fiber_name)[0]
     
-    first_base = f"reconstructions/fiber/"
+    first_base = f"reconstructions/fiber"
 
     base = f"{first_base}/{prefix}_glicerina/{fiber_name}"
     
     folders = [
-        f"{first_base}/results"
-        f"{first_base}/results/confidence_interval"
-        f"{first_base}/results/correlation_metrics"
-        f"{first_base}/results/graphs_of_results"
-        f"{first_base}/results/numbers_of_results"
+        f"{first_base}/results",
+        f"{first_base}/results/confidence_interval",
+        f"{first_base}/results/correlation_metrics",
+        f"{first_base}/results/graphs_of_results",
+        f"{first_base}/results/numbers_of_results",
         f"{base}/hologram",
+        f"{base}/quant_methods",
         f"{base}/reference",
         f"{base}/3Dgraph",
         *[f"{base}/coolchic/lmbda_{l}" for l in lambdas],

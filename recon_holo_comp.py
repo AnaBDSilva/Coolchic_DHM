@@ -11,9 +11,11 @@ import Lloyd_DHM_PhaseRecROI_AUTO_COMP as autoComp
 import modules.readResults as readR
 import modules.pda_metric as metricP
 import modules.processUtils as procUtils
+import modules.quantMethods as qm
 import numpy as np
 import re
 from collections import defaultdict
+from modules.reconstructionState import ReconstructionParams
 
 applyCoolChic = True
 onlyOrderPlus1 = True
@@ -53,6 +55,13 @@ refA = fApath + "FiberA_ref.mat"
 refB = fBpath + "FiberB_ref.mat"
 refcn = cnpath + "cannabis_refg.mat"
 
+recParams = ReconstructionParams(
+    wavelength=632.8e-9,
+    mtransv=12.8,
+    decmt=False,
+    nout=2600
+)
+
 def test(fiber, path, ref):
     #carregar os hologramas do objeto e da referência
     filenameHolo, imgHolo, imgHoloRef = autoComp.loadHolograms(path + fiber, ref)
@@ -68,25 +77,25 @@ def numericalReconstructionAuto(fiber, path, ref):
     filenameHolo, imgHolo, imgHoloRef = autoComp.loadHolograms(path + fiber, ref)
     
     #aplicar pre processamento nos dois hologramas
-    u1, u1r, procHolo = autoComp.applyPreProcessing(imgHolo, imgHoloRef)
+    u1, u1r, procHolo = autoComp.applyPreProcessing(recParams, imgHolo, imgHoloRef)
 
     #selecionar a ordem +1 e descartar o que é desnecessário
-    ft_holo, x_min, y_min, holo_filter, ref_filter = autoComp.autoOrderSelect(filenameHolo, u1, u1r)
+    ft_holo, x_min, y_min, holo_filter, ref_filter = autoComp.autoOrderSelect(recParams, filenameHolo, u1, u1r)
 
     #opcional - mostrar os hologramas
-    autoComp.showInitialHologramState(ft_holo, imgHolo, procHolo, u1r, u1)
+    autoComp.showInitialHologramState(recParams, ft_holo, imgHolo, procHolo, u1r, u1)
 
     #normalizar e salvar o hologramas para futura compressão
     autoComp.normalizeAndSaveHolo(holo_filter, filenameHolo)
 
     #realizar a prpogação em varios planos z para encontrar o melhor
-    zextr, holo_filter = autoComp.propagationOnZ(holo_filter, x_min, y_min, filenameHolo, True)
+    zextr, holo_filter = autoComp.propagationOnZ(recParams, holo_filter, x_min, y_min, filenameHolo, True)
 
     #refocagem no plano otimo z e separação em fase e amplitude
     phase, intensity, phase_ref, ref_intensity = autoComp.refocusOptPlaneChooseROI(holo_filter, zextr, filenameHolo, ref_filter)
 
     #opcional - mostrar a fase e a intensidade
-    xxc, yyc = autoComp.showIntensityPhase(phase, intensity, phase_ref, ref_intensity)
+    xxc, yyc = autoComp.showIntensityPhase(recParams, phase, intensity, phase_ref, ref_intensity)
 
     #fazer o phase unwrapping
     phase_dif = autoComp.phaseUnwrapping(phase, phase_ref, filenameHolo)
@@ -97,12 +106,16 @@ def numericalReconstructionAuto(fiber, path, ref):
 
     phase_corr = autoComp.applyPlane(phase_dif, a, b, c)
 
+    mask_fiber  = 1 - mask_bg  #inverter os valores
+    qm.runQuantMethods(recParams, phase_corr, mask_fiber, filenameHolo) 
+
     #optional - mostrar a diferença corrigida
     autoComp.showCorrectedDifference(phase_dif, phase_corr, xxc, yyc)
 
-    factor_k0, X, Y = autoComp.showPhaseUnwrapRes(xxc, yyc, phase_corr)
+    factor_k0, X, Y = autoComp.showPhaseUnwrapRes(recParams, xxc, yyc, phase_corr)
 
     phase_denoised = autoComp.phaseDenoising(phase_corr)
+    qm.runQuantMethods(recParams, phase_denoised, mask_fiber, filenameHolo, tag="denoised") 
 
     autoComp.showDenoisingRes(phase_denoised, factor_k0, X, Y, xxc, yyc, filenameHolo)
     
@@ -242,7 +255,7 @@ def getMetricsCombined(allFibers):
         readR.getRDGraphCombined(df_holo, df_phase, df_pda, [metric], isAll=True)
 
 #########
-runReconstruction(fibersB)
+#runReconstruction(fibersA[-1])
 #runCoolChic(fibersB)
 
 arr2 = ["FiberB_0", "FiberB_1"]
@@ -252,4 +265,4 @@ arr3 = [x for x in fibersB if x not in arr2]
 #getMetricsPhase(allFibers, isCategory=True, isAll=True)
 #getMetricsCombined(allFibers)
 
-#procUtils.chooseStandartROI(fibersA[0])
+procUtils.chooseStandartROI(fibersA[0])
