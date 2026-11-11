@@ -11,50 +11,35 @@ Links-->          - https://github.com/catrujilla/pyDHM
 
 """  
 #%% Hologram Reconstruction Routine for Lloyd Mirror Common Path DHM
-import os
-import sys
-
-PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
-if PROJECT_ROOT not in sys.path:
-    sys.path.insert(0, PROJECT_ROOT)
-
-
-def fiber_output_root(filenameHolo):
-    prefix = re.split(r"[_.]+", filenameHolo)[0]
-    return os.path.join("reconstructions", "fiber", f"{prefix}_glicerina", filenameHolo)
-
+import os, time, re
 
 import importlib
 from pyDHM import utils
 importlib.reload(utils)
-import time
-
-from skimage.restoration import denoise_nl_means
-
-from matplotlib.ticker import MultipleLocator
-
 from pyDHM import numProp
 importlib.reload(numProp)
-import numpy as np
+
+from skimage.restoration import denoise_nl_means
+import skimage as ski
+
+from matplotlib.ticker import MultipleLocator
+from matplotlib import pyplot as plt
 
 # Interactive file importing
 import tkinter as tk
 from tkinter import filedialog
 from scipy.io import loadmat
-import re
 
-from matplotlib import pyplot as plt
-import numpy as np
-import skimage as ski
 import cv2
+import numpy as np
+
 from modules.reconstructionState import ReconstructionParams, ReconstructionState
+from modules.roi import applyStandartROI
+from modules.segmentation import segment_fiber_grabcut_seeds, segment_fiber_grabcut
 
 import modules.autoOrderDetection as aod
 import modules.compressionPipeline as cd
 import modules.processUtils as procUtils
-import modules.readResults as readRes
-from modules.processUtils import select_roi_opencv, segment_fiber_grabcut_seeds, segment_fiber_grabcut, Rect_Window, pre_process, variance_norm, calc_zobj
-
 
 '''
 ============================================================
@@ -301,11 +286,11 @@ def applyPreProcessing(recParams, imgHolo, imgHoloRef):
         the hologram after being pre-processed, before apodization/contrast
 
     '''
-    procHolo = pre_process(recParams, imgHolo)
+    procHolo = procUtils.pre_process(recParams, imgHolo)
     print(procHolo.shape)
     # utils.imageShow(procHolo, 'pre-proc. input field')
     # Reference Hologram pre-processing
-    procRef = pre_process(recParams, imgHoloRef)
+    procRef = procUtils.pre_process(recParams, imgHoloRef)
     print(procRef.shape)
     # utils.imageShow(procRef, 'pre-proc. ref field')
 
@@ -325,7 +310,7 @@ def applyPreProcessing(recParams, imgHolo, imgHoloRef):
     # N - number of columns - x
     # M - number of rows    - y
     M, N = u1.shape
-    window = Rect_Window(N, M, eta=0.8, w=0.2)
+    window = procUtils.Rect_Window(N, M, eta=0.8, w=0.2)
     u1 *= window
     u1r *= window
     # Show Contrast or Original Hologram
@@ -572,7 +557,7 @@ def autoOrderSelect(recParams, filenameHolo, u1, u1r, onlyOrderPlus1=True):
     FT_ref = np.fft.fftshift(np.fft.fft2(u1r))
     ref_filter, _ = aod.filter_center_plus1(FT_ref, plus1_center, circle_radius)
 
-    base = fiber_output_root(filenameHolo)
+    base = procUtils.fiber_output_root(filenameHolo)
     hologram_dir = os.path.join(base, "hologram")
     os.makedirs(hologram_dir, exist_ok=True)
     filepath = os.path.join(hologram_dir, "holo_order")
@@ -603,7 +588,7 @@ def runCoolChic(filenameHolo, lambda_now):
     '''
 
     bits = 8
-    baseCoolChic = fiber_output_root(filenameHolo)
+    baseCoolChic = procUtils.fiber_output_root(filenameHolo)
     filepath = os.path.join(baseCoolChic, "hologram", "holo_order")
 
     print(f"A comprimir {filenameHolo} com lambda {lambda_now}...")
@@ -637,7 +622,7 @@ def normalizeAndSaveHolo(holo_filter, filenameHolo):
     bits = 8
 
     #if we arent using thee holo_order change it back to holo here
-    base = fiber_output_root(filenameHolo)
+    base = procUtils.fiber_output_root(filenameHolo)
     hologram_dir = os.path.join(base, "hologram")
     os.makedirs(hologram_dir, exist_ok=True)
     filepath = os.path.join(hologram_dir, "holo_order")
@@ -690,7 +675,7 @@ def loadPropagationInfo(holo_filter, filenameHolo, onlyOrderPlus1=True):
     holo_filter : ndarray
         the full hologram in its complex form, with the information of the order +1 only
     '''   
-    base = fiber_output_root(filenameHolo)
+    base = procUtils.fiber_output_root(filenameHolo)
     filepath = base + "/"
     jsonPath = os.path.join(base, "hologram", "holo_order_infoOrderCenter.json")
     
@@ -753,7 +738,7 @@ def propagationOnZ(recParams, holo_filter, x_min, y_min, filenameHolo, onlyOrder
     output = numProp.angular_spectrum(holo_filter, 0, recParams.wavelength, recParams.dx, recParams.dx)
     intensity = utils.intensity(output, False)
 
-    base = fiber_output_root(filenameHolo)
+    base = procUtils.fiber_output_root(filenameHolo)
     ref_dir = os.path.join(base, "reference")
     os.makedirs(ref_dir, exist_ok=True)
     filepath = os.path.join(ref_dir, "holo_order")
@@ -762,25 +747,8 @@ def propagationOnZ(recParams, holo_filter, x_min, y_min, filenameHolo, onlyOrder
     filepathROI = os.path.join("reconstructions", "ROI", "intensity", f"{filenameHolo}_intensity.npy")
     os.makedirs(os.path.dirname(filepathROI), exist_ok=True)
     np.save(filepathROI, intensity)
-
-    filepathROImes = f"reconstructions/ROI/ROI_measure.json"
-    info = procUtils.load_json(filepathROImes)
-    rmin, rmax, cmin, cmax = (int(info[k]) for k in ("rmin", "rmax", "cmin", "cmax"))
-
-    '''
-    rmin, rmax, cmin, cmax = select_roi_opencv(intensity, 0.3)
-
-    #salvar os limites do recorte para aplicar o mesmo na compressão
-    info = {
-        "rmin": float(rmin),
-        "rmax": float(rmax),
-        "cmin": float(cmin),
-        "cmax": float(cmax)
-    }
     
-    jsonPath = filepath + "_infoROI.json"
-    procUtils.save_json(jsonPath, info)
-    '''
+    rmin, rmax, cmin, cmax = applyStandartROI()
 
     # z em mm
     z = np.linspace(-4, 14, nzpts)
@@ -794,10 +762,10 @@ def propagationOnZ(recParams, holo_filter, x_min, y_min, filenameHolo, onlyOrder
 
         # Intensidade e métrica de foco
         intensity = utils.intensity(output, False)
-        fmetric[ii] = variance_norm(intensity[rmin:rmax, cmin:cmax])
+        fmetric[ii] = procUtils.variance_norm(intensity[rmin:rmax, cmin:cmax])
 
         # Object distance (from MO)
-        zo = calc_zobj(zi, 160, 10, recParams.mtransv)
+        zo = procUtils.calc_zobj(zi, 160, 10, recParams.mtransv)
 
         # (opcional debug)
         print(f"zi = {zi:.2f} mm, zo = {1e3*zo:.2f} um, metric = {fmetric[ii]:.4e}")
@@ -880,7 +848,7 @@ def propagationOnZ(recParams, holo_filter, x_min, y_min, filenameHolo, onlyOrder
     plt.show()
 
     # Image and Object plane focus distance:
-    zobjt_extr = calc_zobj(zextr, 160, 10, recParams.mtransv)
+    zobjt_extr = procUtils.calc_zobj(zextr, 160, 10, recParams.mtransv)
     print(f"Zfimg = {zextr:.6f} mm")
     print(f"Zfobj = {zobjt_extr*1000:6f} \u00B5m")
 
@@ -927,7 +895,7 @@ def refocusOptPlaneChooseROI(holo_filter, zextr, filenameHolo, ref_filter=None, 
         intensity of the reference ROI
     '''
 
-    base = fiber_output_root(filenameHolo)
+    base = procUtils.fiber_output_root(filenameHolo)
     filepath = os.path.join(base, "hologram")
     if ref_filter is None:
         ref_filter = np.load(os.path.join(filepath, "holo_order_ref_filter.npy"))
@@ -1118,9 +1086,9 @@ def phaseUnwrapping(phase, phase_ref, filenameHolo, lambda_now=None, applyCoolCh
 
     if applyCoolChic:
         #arranjar este caminho que esta broken
-        filepath = os.path.join(fiber_output_root(filenameHolo), "coolchic", f"lmbda_{lambda_now}", "phase")    
+        filepath = os.path.join(procUtils.fiber_output_root(filenameHolo), "coolchic", f"lmbda_{lambda_now}", "phase")    
     else:
-        base = fiber_output_root(filenameHolo)
+        base = procUtils.fiber_output_root(filenameHolo)
         filepath = os.path.join(base, "reference")
         
     #salvar a amplitude e a fase para possivel análise
@@ -1514,10 +1482,10 @@ def showDenoisingRes(phase_denoised, factor_k0, X, Y, xxc, yyc, filenameHolo, la
     
     if applyCoolChic:
         # corrigir a pasta para guardar
-        baseCoolChic = fiber_output_root(filenameHolo)
+        baseCoolChic = procUtils.fiber_output_root(filenameHolo)
         filepath = os.path.join(baseCoolChic, "coolchic", f"lmbda_{lambda_now}", "3D")
     else:
-        base = fiber_output_root(filenameHolo)
+        base = procUtils.fiber_output_root(filenameHolo)
         filepath = os.path.join(base, "3Dgraph")
 
     plt.savefig(os.path.join(filepath, f"3d-{filenameHolo}.png"))

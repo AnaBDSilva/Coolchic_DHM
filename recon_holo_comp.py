@@ -10,8 +10,8 @@ if PROJECT_ROOT not in sys.path:
 import Lloyd_DHM_PhaseRecROI_AUTO_COMP as autoComp
 import modules.readResults as readR
 import modules.pda_metric as metricP
-import modules.processUtils as procUtils
 import modules.quantMethods as qm
+import modules.roi as roiOps
 import numpy as np
 import re
 from collections import defaultdict
@@ -254,6 +254,11 @@ def getMetricsCombined(allFibers):
 
         readR.getRDGraphCombined(df_holo, df_phase, df_pda, [metric], isAll=True)
 
+########################################################################################################################################################################
+## Choose ROI                                                                                                                                                         ##
+########################################################################################################################################################################
+
+
 #########
 #runReconstruction(fibersA[-1])
 #runCoolChic(fibersB)
@@ -265,4 +270,4 @@ arr3 = [x for x in fibersB if x not in arr2]
 #getMetricsPhase(allFibers, isCategory=True, isAll=True)
 #getMetricsCombined(allFibers)
 
-procUtils.chooseStandartROI(fibersA[0])
+roiOps.chooseStandartROI(fibersA[0])
