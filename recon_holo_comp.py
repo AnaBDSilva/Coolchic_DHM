@@ -28,6 +28,10 @@ lambdas = ["1e-1", "1e-2", "1e-3", "1e-4", "1e-5"]
 fibersA = ["FiberA_1", "FiberA_1_lowerpart", "FiberA_2", "FiberA_3", "FiberA_4"]
 fibersB = ["FiberB_0", "FiberB_1", "FiberB_2", "FiberB_3", "FiberB_4"]
 cannabis = ["cannabis_1g", "cannabis_2g", "cannabis_3g"]
+CF_UB_Novembro = ["FiberB001", "FiberB002", "FiberB003", "FiberB004", "FiberB005", "FiberB006", "FiberB007", "FiberB008", "FiberB009", "FiberB0010"]
+CMF = ["FiberA001", "FiberA002", "FiberA003", "FiberA004", "FiberA005", "FiberA006", "FiberA007", "FiberA008", "FiberA009", "FiberA0010"]
+Eucalyptus = ["FiberE001", "FiberE002", "FiberE003", "FiberE004", "FiberE005", "FiberE006", "FiberE007", "FiberE008", "FiberE009", "FiberE010", "FiberE011", "FiberE012", "FiberE013", "FiberE014", "FiberE015"]
+Pinus = ["FiberD001", "FiberD002", "FiberD003", "FiberD004", "FiberD005", "FiberD006", "FiberD007", "FiberD008", "FiberD009", "FiberD010", "FiberD011"]
 #cannabis = ["cannabis_1g", "cannabis_2g", "cannabis_3g", "cannabis_4g"]
 #fibersA = ["FiberA_1", "FiberA_1_lowerpart", "FiberA_2", "FiberA_3", "FiberA_4", "FiberA_5"]
 
@@ -42,18 +46,40 @@ PATH_MAP = {
 }
 
 #caminho para as amostras geral
-#samplePath = f"/home/anabs/Documents/Uni/2ºSemestre/projeto/pyDHM-master/data/DataIn/{mainFolder}/"
 samplePath = f"data/DataIn/{mainFolder}/"
 
 #caminho especifico para cada tipo de amostra de fibras
 fApath = samplePath + "FiberA_glicerina/"
 fBpath = samplePath + "FiberB_glicerina/"
 cnpath = samplePath + "cannabis_glicerina/"
+cfUBPath = "data/DataIn/CF-UB-Novembro/"
+cmfPath = "data/DataIn/CMF/"
+eucalyptusPath = "data/DataIn/Eucalyptus/"
+pinusPath = "data/DataIn/Pinus/"
 
 #caminho de cada referencia, uma por categoria
 refA = fApath + "FiberA_ref.mat"
 refB = fBpath + "FiberB_ref.mat"
 refcn = cnpath + "cannabis_refg.mat"
+refCF_UB = cfUBPath + "Ref-FiberB.mat"
+refCMF = cmfPath + "Ref-FiberA.mat"
+refEucalyptus = eucalyptusPath + "FiberERef.mat"
+refPinus = pinusPath + "FiberDRefAir.mat"
+
+SAMPLE_TYPES = {
+    "FiberA":   (fApath,          refA),
+    "FiberB":   (fBpath,          refB),
+    "cannabis": (cnpath,          refcn),
+    "CF":       (cfUBPath,        refCF_UB),
+    "CMF":      (cmfPath,         refCMF),
+    "FiberE":   (eucalyptusPath,  refEucalyptus),
+    "FiberD":   (pinusPath,       refPinus),
+}
+
+COMPACT_TYPE = {
+    "FiberA": "CMF",       # FiberA001, FiberA002 
+    "FiberB": "CF",        # FiberB001, FiberB002 
+}
 
 recParams = ReconstructionParams(
     wavelength=632.8e-9,
@@ -61,6 +87,13 @@ recParams = ReconstructionParams(
     decmt=False,
     nout=2600
 )
+
+def get_fiber_type(name):
+    prefix = re.match(r"[A-Za-z]+", name).group()
+    nxt = name[len(prefix):len(prefix) + 1]          # character right after the letters
+    if nxt.isdigit() and prefix in COMPACT_TYPE:
+        return COMPACT_TYPE[prefix]
+    return prefix
 
 def test(fiber, path, ref):
     #carregar os hologramas do objeto e da referência
@@ -159,22 +192,13 @@ def numericalReconstructionAuto_CoolChic(fiber, lmbda):
 def runReconstruction(fiberGroup):
     #run everythin again just to get the radius values for reference
     for fiber in fiberGroup:
-        pathSplit = re.split(r"[_.]+", fiber)
-        fiberType = pathSplit[0]
+        fiberType = get_fiber_type(fiber)
 
-        match fiberType:
-            case "FiberA":
-                path = fApath
-                ref = refA
-            case "FiberB":
-                path = fBpath
-                ref = refB
-            case "cannabis":
-                path = cnpath
-                ref = refcn
-            case _:
-                print("Tipo de fibra desconhecido.")
-                exit
+        if fiberType not in SAMPLE_TYPES:
+            print(f"Tipo de fibra desconhecido: {fiber} ({fiberType})")
+            continue                     
+
+        path, ref = SAMPLE_TYPES[fiberType]
 
         #test(fiber, path, ref)
         numericalReconstructionAuto(fiber, path, ref)
