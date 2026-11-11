@@ -146,3 +146,5 @@ reconstructions/fiber_before/
 reconstructions/azo/
 
 *.npy
+
+!reconstructions/ROI/intensity/*.npy
