@@ -36,7 +36,15 @@ Pinus = ["FiberD001", "FiberD002", "FiberD003", "FiberD004", "FiberD005", "Fiber
 #fibersA = ["FiberA_1", "FiberA_1_lowerpart", "FiberA_2", "FiberA_3", "FiberA_4", "FiberA_5"]
 
 #todas as fibras
-allFibers = np.concatenate((fibersA, fibersB, cannabis)).tolist()
+allFibers = (
+    fibersA
+    + fibersB
+    + cannabis
+    + CF_UB_Novembro
+    + CMF
+    + Eucalyptus
+    + Pinus
+)
 
 mainFolder = "Fibras_glicerina"
 PATH_MAP = {
@@ -67,18 +75,21 @@ refEucalyptus = eucalyptusPath + "FiberERef.mat"
 refPinus = pinusPath + "FiberDRefAir.mat"
 
 SAMPLE_TYPES = {
-    "FiberA":   (fApath,          refA),
-    "FiberB":   (fBpath,          refB),
-    "cannabis": (cnpath,          refcn),
-    "CF":       (cfUBPath,        refCF_UB),
-    "CMF":      (cmfPath,         refCMF),
-    "FiberE":   (eucalyptusPath,  refEucalyptus),
-    "FiberD":   (pinusPath,       refPinus),
+    "FiberA":     (fApath,          refA),
+    "FiberB":     (fBpath,          refB),
+    "cannabis":   (cnpath,          refcn),
+    "CF":         (cfUBPath,        refCF_UB),
+    "CMF":        (cmfPath,         refCMF),
+    "Eucalyptus": (eucalyptusPath,  refEucalyptus),
+    "Pinus":      (pinusPath,       refPinus),
 }
 
 COMPACT_TYPE = {
-    "FiberA": "CMF",       # FiberA001, FiberA002 
-    "FiberB": "CF",        # FiberB001, FiberB002 
+    "FiberA": "CMF",
+    "FiberB": "CF",
+    "FiberE": "Eucalyptus",
+    "FiberD": "Pinus",
+    "cannabis": "cannabis",
 }
 
 recParams = ReconstructionParams(
@@ -90,8 +101,10 @@ recParams = ReconstructionParams(
 
 def get_fiber_type(name):
     prefix = re.match(r"[A-Za-z]+", name).group()
-    nxt = name[len(prefix):len(prefix) + 1]          # character right after the letters
-    if nxt.isdigit() and prefix in COMPACT_TYPE:
+    nxt = name[len(prefix):len(prefix) + 1]
+    if prefix in COMPACT_TYPE and nxt.isdigit():
+        return COMPACT_TYPE[prefix]
+    if prefix in COMPACT_TYPE:
         return COMPACT_TYPE[prefix]
     return prefix
 
@@ -182,7 +195,7 @@ def numericalReconstructionAuto_CoolChic(fiber, lmbda):
     autoComp.showCorrectedDifference(phase_dif, phase_corr, xxc, yyc)
 
     #opcional - mostrar o resultado final da phase apos ser corrigida
-    factor_k0, X, Y = autoComp.showPhaseUnwrapRes(xxc, yyc, phase_corr)
+    factor_k0, X, Y = autoComp.showPhaseUnwrapRes(recParams, xxc, yyc, phase_corr)
 
     phase_denoised = autoComp.phaseDenoising(phase_corr)
 
@@ -229,9 +242,8 @@ def getMetricsHoloComplex(fiber, isCategory=False, isAll=False):
     if isCategory:
         categories = defaultdict(list)
         for fib in fiberList:
-            cat_prefix = re.split(r"[_.]+", fib)[0]  
-            categories[cat_prefix].append(fib)
-        
+            categories[get_fiber_type(fib)].append(fib)
+
         for cat_prefix, group_items in categories.items():
             readR.getRDGraphComplexAll(group_items, isCategory=isCategory, isAll=False)
 
@@ -253,9 +265,8 @@ def getMetricsPhase(fiber, isCategory=False, isAll=False):
     if isCategory:
         categories = defaultdict(list)
         for fib in fiberList:
-            cat_prefix = re.split(r"[_.]+", fib)[0]  
-            categories[cat_prefix].append(fib)
-        
+            categories[get_fiber_type(fib)].append(fib)
+
         for cat_prefix, group_items in categories.items():
             readR.getRDGraphPhaseAll(group_items, "Wrapped", ['psnr'], "phaseWrapped", isAll=False, isCategory=isCategory, isPhaseWrapped=True)
             readR.getRDGraphPhaseAll(group_items, "Wrapped", ['ssim'], "phaseWrapped", isAll=False, isCategory=isCategory, isPhaseWrapped=True)
@@ -294,4 +305,6 @@ arr3 = [x for x in fibersB if x not in arr2]
 #getMetricsPhase(allFibers, isCategory=True, isAll=True)
 #getMetricsCombined(allFibers)
 
-roiOps.chooseStandartROI(fibersA[0])
+#roiOps.chooseStandartROI(fibersA[0])
+runReconstruction(CF_UB_Novembro)
+

@@ -1,6 +1,6 @@
 import numpy as np
 import cv2, os
-from modules.processUtils import save_json, load_json
+from modules.processUtils import save_json, load_json, fiber_output_root
 
 ########################################################################################################################################################################
 ## ROI related function: choose standart and apply to a hologram                                                                                                      ##
@@ -126,31 +126,24 @@ def chooseStandartROI(fiber_name):
     save_json(filepath, info)
 
 def applyStandartROI(fiber_name):
-    filepath = f"reconstructions/ROI/intensity/{fiber_name}_intensity.npy"
-    filepath_json = f"reconstructions/ROI/ROI_measure.json"
+    intensity = np.load(f"reconstructions/ROI/intensity/{fiber_name}_intensity.npy")
 
-    intensity = np.load(filepath)
+    try:
+        initial_coords = load_roi()                    
+    except FileNotFoundError:
+        initial_coords = None
 
-    initial_coords = None
-    # Ler as medidas de ROI guardadas e utilizar 
-    if os.path.exists(filepath_json):
-        try:
-            info = load_json(filepath_json)
-            initial_coords = (info["rmin"], info["rmax"], info["cmin"], info["cmax"])
-        except Exception as e:
-            pass
+    rmin, rmax, cmin, cmax = select_roi_opencv(intensity, 0.3, initial_coords=initial_coords)
+    if rmin is None:
+        print("Seleção de ROI cancelada.")
+        return None
 
-        rmin, rmax, cmin, cmax = select_roi_opencv(intensity, 0.3, initial_coords=initial_coords)
-        
-        #salvar os limites do recorte para aplicar o mesmo na compressão
-        info = {
-            "rmin": float(rmin),
-            "rmax": float(rmax),
-            "cmin": float(cmin),
-            "cmax": float(cmax)
-        }
-        
-        jsonPath = filepath + "_infoROI.json"
-        save_json(jsonPath, info)
+    info = {"rmin": int(rmin), "rmax": int(rmax), "cmin": int(cmin), "cmax": int(cmax)}
+    jsonPath = os.path.join(fiber_output_root(fiber_name), "reference", "holo_order_infoROI_view.json")
+    save_json(jsonPath, info)
 
     return rmin, rmax, cmin, cmax
+
+def load_roi(path="reconstructions/ROI/ROI_measure.json"):
+    info = load_json(path)
+    return tuple(int(info[k]) for k in ("rmin", "rmax", "cmin", "cmax"))

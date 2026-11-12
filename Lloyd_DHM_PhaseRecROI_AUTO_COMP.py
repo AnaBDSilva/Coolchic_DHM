@@ -748,7 +748,7 @@ def propagationOnZ(recParams, holo_filter, x_min, y_min, filenameHolo, onlyOrder
     os.makedirs(os.path.dirname(filepathROI), exist_ok=True)
     np.save(filepathROI, intensity)
     
-    rmin, rmax, cmin, cmax = applyStandartROI()
+    rmin, rmax, cmin, cmax = applyStandartROI(filenameHolo)
 
     # z em mm
     z = np.linspace(-4, 14, nzpts)
